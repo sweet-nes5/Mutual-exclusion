@@ -9,7 +9,7 @@
 #include <string.h>
 
 #define NB_OWNERS 5
-#define NB_LOCKS 5
+#define NB_LOCKS 
 #define NB_FILES 256
 
 typedef struct{
@@ -44,8 +44,8 @@ static struct {
 // les fonctions
 
 rl_descriptor rl_open(const char *path, int oflag, ...);
-
-
+int initialiser_mutex(pthread_mutex_t *pmutex);
+int initialiser_cond(pthread_cond_t *pcond);
 
 
 
