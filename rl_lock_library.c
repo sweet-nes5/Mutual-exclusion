@@ -103,10 +103,13 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
   }else
     PANIC_EXIT("shm_open");
 
+   
   //initialiser la memoire seulement si nouveau shared memory object est créé
   if (new_shm)
   {
-    
+    initialiser_mutex(&(descriptor.mutex));
+    //initialiser rl_all_files
+      
 
 
 

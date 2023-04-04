@@ -34,6 +34,7 @@ typedef struct{
 typedef struct{
     int d;
     rl_open_file *f;
+    pthread_mutex_t mutex;
 } rl_descriptor;
 
 static struct {
