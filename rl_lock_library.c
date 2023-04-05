@@ -103,6 +103,8 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
   }else
     PANIC_EXIT("shm_open");
 
+  rl_all_files.nb_files = 0;
+ *rl_all_files.tab_open_files =descriptor.f;
    
   //initialiser la memoire seulement si nouveau shared memory object est créé
   if (new_shm)
