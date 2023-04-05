@@ -48,6 +48,20 @@ int initialiser_cond(pthread_cond_t *pcond){
   return code;
 }	
 
+char *prefix_slash(const char *name){
+  #define L_NAME 256
+  static char nom[L_NAME]; 
+
+  if( name[0] != '/' ){
+    nom[0] = '/';
+    strncpy(nom+1, name, L_NAME-1);
+  }else{
+    strncpy(nom, name, L_NAME);
+  }
+  nom[L_NAME-1]='\0';
+  return nom;
+}
+
 
 
 rl_descriptor rl_open(const char *path, int oflag, ...){

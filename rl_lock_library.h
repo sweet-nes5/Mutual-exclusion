@@ -11,6 +11,18 @@
 #define NB_OWNERS 5
 #define NB_LOCKS 
 #define NB_FILES 256
+#define PANIC_EXIT( msg )  do{			\
+   fprintf(stderr,\
+     "\n %d %s : error \"%s\" in file %s in line %d\n",\
+	   (int) getpid(), msg, strerror(errno), __FILE__, __LINE__);	\
+   exit(1);\
+  } while(0)		
+#define PANIC( msg )  do{			\
+   fprintf(stderr,\
+     "\n %d %s : error \"%s\" in file %s in line %d\n",\
+	   (int) getpid(),msg, strerror(errno), __FILE__, __LINE__);	 \
+  } while(0)	
+char *prefix_slash(const char *name);
 
 typedef struct{
     pid_t proc; /* pid du processus */
