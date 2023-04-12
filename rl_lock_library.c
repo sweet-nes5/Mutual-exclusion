@@ -65,12 +65,13 @@ char *prefix_slash(const char *name){
 
 
 rl_descriptor rl_open(const char *path, int oflag, ...){
-    /*allouer memoire
-    rl_descriptor descriptor = (rl_descriptor*) malloc(sizeof(rl_descriptor));
+    /*allouer memoire*/
+    rl_open_file* open_file= (rl_open_file*) malloc(sizeof(rl_open_file));
+    /*rl_descriptor* descriptor = (rl_descriptor*) malloc(sizeof(rl_descriptor));
     if (descriptor.d == -1)
     {
         fprintf(stderr, "L'allocation de mémoire à l'aide de la fonction malloc() à echoué \n");
-        descriptor.d =-1; 
+        descriptor.d ==-1; 
         exit(EXIT_FAILURE);// en ca.d'echec on retourne l'objet dont le champ.d est -1
 
     }*/
@@ -99,6 +100,7 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
     
     if( ftruncate( descriptor.d, sizeof(rl_open_file) ) < 0 )
       PANIC_EXIT("ftruncate");
+    //projection en memoire
     ptr= mmap((void*)0,taille_memoire,mmap_protect,MAP_SHARED,descriptor.d,0 );
     if(ptr == MAP_FAILED){
       PANIC_EXIT("Fonction mmap()");} 
@@ -116,15 +118,15 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
     
   }else
     PANIC_EXIT("shm_open");
-
-  rl_all_files.nb_files = 0;
- *rl_all_files.tab_open_files =descriptor.f;
+  //mettre à jour rl_all_files
+   *rl_all_files.tab_open_files = &(descriptor.f);
+  (*rl_all_files.tab_open_files) ++;
    
   //initialiser la memoire seulement si nouveau shared memory object est créé
   if (new_shm)
   {
-    initialiser_mutex(&(descriptor.mutex));
-    //initialiser rl_all_files
+    initialiser_mutex(&(rl_all_files.mutex));
+    
       
 
 
@@ -177,14 +179,5 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
 
 
 return descriptor;
-
-
-
-
-
-
-
-
-
     
 }

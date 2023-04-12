@@ -46,12 +46,12 @@ typedef struct{
 typedef struct{
     int d;
     rl_open_file *f;
-    pthread_mutex_t mutex;
 } rl_descriptor;
 
 static struct {
     int nb_files;
     rl_open_file *tab_open_files[NB_FILES];
+    pthread_mutex_t mutex;
 } rl_all_files;
 
 // les fonctions
