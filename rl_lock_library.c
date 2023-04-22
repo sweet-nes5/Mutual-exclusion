@@ -20,11 +20,11 @@
 #include <stdarg.h>
 #include "rl_lock_library.h"
 
-
+//gcc -Wall rl_lock_library.c main.c -o  min
 
 int initialiser_mutex(pthread_mutex_t *pmutex){
     pthread_mutexattr_t mutexattr;
-  int code;
+  int code = 0;
   if( ( code = pthread_mutexattr_init(&mutexattr) ) != 0){
     fprintf(stderr, "Fonction pthread_mutexattr_init(): ");
     return code;
@@ -35,6 +35,7 @@ int initialiser_mutex(pthread_mutex_t *pmutex){
   code = pthread_mutex_init(pmutex, &mutexattr) ;
   return code;
   }
+  return code;
 }
 
 int initialiser_cond(pthread_cond_t *pcond){
@@ -66,29 +67,25 @@ char *prefix_slash(const char *name){
 
 rl_descriptor rl_open(const char *path, int oflag, ...){
     /*allouer memoire*/
-    rl_open_file* open_file= (rl_open_file*) malloc(sizeof(rl_open_file));
-    /*rl_descriptor* descriptor = (rl_descriptor*) malloc(sizeof(rl_descriptor));
-    if (descriptor.d == -1)
+    rl_open_file* open_file= (rl_open_file*) malloc(sizeof(rl_open_file) + sizeof(int)* NB_LOCKS);
+    if (open_file == NULL)
     {
-        fprintf(stderr, "L'allocation de mémoire à l'aide de la fonction malloc() à echoué \n");
-        descriptor.d ==-1; 
-        exit(EXIT_FAILURE);// en ca.d'echec on retourne l'objet dont le champ.d est -1
-
-    }*/
-    rl_descriptor descriptor;
+      fprintf(stderr, "L'allocation de mémoire à l'aide de la fonction malloc() à echoué \n");
+      exit(-1);
+    }
+    rl_descriptor descriptor = {.d = 0, .f = NULL};
     void* ptr = NULL;
     //que passer dans l'argument de mmap
     int mmap_protect;
     if((O_RDWR & oflag)== O_RDWR)
       mmap_protect= PROT_READ | PROT_WRITE;
 
-    int  new_shm = true;  /* new_shm == true si la creation de nouveau
-			     * shared memory object */
+    int  new_shm = true;  /* new_shm == true si la creation de nouveau shared memory object */
   /* ajouter '/' au debut du nom de shared memory object */
     char *shm_name = prefix_slash(path);
-    mode_t mode = 0;
+    //mode_t mode = 0;
   /* open and create */
-  if((O_CREAT & oflag)== O_CREAT){// veut dire que l'objet memoire n'existe pas encore
+  if((O_CREAT & oflag)== O_CREAT){// veut dire que l'objet memoire n'existe pas encore et on va le creer
         va_list liste_parametres;
         va_start(liste_parametres,oflag);
         mode_t mode = va_arg(liste_parametres, mode_t);
@@ -109,6 +106,7 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
   }
  }  
   //erreur avec l'ouverture de shm
+  
   else if( descriptor.d < 0 && errno == EEXIST ){/* shared memory object existe déjà et il suffit de l'ouvrir */
 				       
     descriptor.d = shm_open(shm_name,  O_RDWR, S_IWUSR | S_IRUSR);
@@ -116,64 +114,36 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
       PANIC_EXIT("shm_open existing object");
     new_shm = false;
     
-  }else
-    PANIC_EXIT("shm_open");
+  }else 
+    exit(-1);
+    
   //mettre à jour rl_all_files
-   *rl_all_files.tab_open_files = &(descriptor.f);
-  (*rl_all_files.tab_open_files) ++;
+   
    
   //initialiser la memoire seulement si nouveau shared memory object est créé
   if (new_shm)
   {
-    initialiser_mutex(&(rl_all_files.mutex));
+    
+    int result_init_mutex = initialiser_mutex(&(open_file->mutex));
+    if(result_init_mutex != 0){
+      char* erreur_init_mutex = strerror(result_init_mutex);
+      fprintf(stderr, "erreur dans l'initialisation du mutex : %s \n",erreur_init_mutex);}
+      
+    int result_init_cond = initialiser_cond(&(open_file->section_libre));
+    if(result_init_cond != 0){
+      char* erreur_init_cond = strerror(result_init_cond);
+      fprintf(stderr, "erreur dans l'initialisation du mutex : %s \n",erreur_init_cond);}
+
+    *rl_all_files.tab_open_files = (descriptor.f);
+    (*rl_all_files.tab_open_files) ++;
+    rl_all_files.nb_files++;
     
       
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   }
     
 
-    /*oflag is a bit mask created by ORing together exactly one of
-       O_RDONLY or O_RDWR and any of the other flags listed here:
-
-       O_RDONLY
-              Open the object for read access.  A shared memory object
-              opened in this way can be mmap(2)ed only for read
-              (PROT_READ) access.
-
-       O_RDWR Open the object for read-write access.
-
-       O_CREAT
-              Create the shared memory object if it does not exist
-
-              A new shared memory object initially has zero length—the
-              size of the object can be set using ftruncate(2).  The
-              newly allocated bytes of a shared memory object are
-              automatically initialized to 0.
-
-       O_EXCL If O_CREAT was also specified, and a shared memory object
-              with the given name already exists, return an error.  The
-              check for the existence of the object, and its creation if
-              it does not exist, are performed atomically.
-
-       O_TRUNC
-              If the shared memory object already exists, truncate it to
-              zero bytes.*/
+  
 
 
 
@@ -181,3 +151,20 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
 return descriptor;
     
 }
+ int rl_close( rl_descriptor lfd){
+
+  int result = close(lfd.d);
+  if (result == -1){
+    const char *msg;
+    msg = strerror(errno);
+    fprintf(stderr,"Eroor closing the file : %s\n",msg );
+    exit(EXIT_FAILURE);
+  }
+  owner lfd_owner = {.proc = getpid(), .des = lfd.d};
+  lfd.f->lock_table;
+
+
+
+
+  return 0;
+ }

@@ -1,4 +1,4 @@
-#ifndef RL_LOCK_LIBRARY_H_
+#ifndef _RL_LOCK_LIBRARY_H_
 #include <stdlib.h> // srand() atoi() rand() exit() EXIT_SUCCESS EXIT_FAILURE
 #include <unistd.h> // fork(), getpid(), sleep()
 #include <stdio.h> // fprintf(), perror()
@@ -8,8 +8,8 @@
 #include <errno.h>
 #include <string.h>
 
-#define NB_OWNERS 5
-#define NB_LOCKS 
+#define NB_OWNERS 
+#define NB_LOCKS 10
 #define NB_FILES 256
 #define PANIC_EXIT( msg )  do{			\
    fprintf(stderr,\
@@ -41,6 +41,8 @@ typedef struct{
 typedef struct{
     int first;
     rl_lock lock_table[NB_LOCKS];
+    pthread_mutex_t mutex;
+    pthread_cond_t section_libre;
 } rl_open_file;
 
 typedef struct{
@@ -51,7 +53,7 @@ typedef struct{
 static struct {
     int nb_files;
     rl_open_file *tab_open_files[NB_FILES];
-    pthread_mutex_t mutex;
+    
 } rl_all_files;
 
 // les fonctions
@@ -59,7 +61,7 @@ static struct {
 rl_descriptor rl_open(const char *path, int oflag, ...);
 int initialiser_mutex(pthread_mutex_t *pmutex);
 int initialiser_cond(pthread_cond_t *pcond);
-
+ int rl_close( rl_descriptor lfd);
 
 
 
