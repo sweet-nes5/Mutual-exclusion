@@ -66,13 +66,14 @@ char *prefix_slash(const char *name){
 
 
 rl_descriptor rl_open(const char *path, int oflag, ...){
-    /*allouer memoire*/
-    rl_open_file* open_file= (rl_open_file*) malloc(sizeof(rl_open_file) + sizeof(int)* NB_LOCKS);
+
+  
+    /*rl_open_file* open_file;= (rl_open_file*) malloc(sizeof(rl_open_file) + sizeof(int)* NB_LOCKS);
     if (open_file == NULL)
     {
       fprintf(stderr, "L'allocation de mémoire à l'aide de la fonction malloc() à echoué \n");
       exit(-1);
-    }
+    }*/
     rl_descriptor descriptor = {.d = 0, .f = NULL};
     void* ptr = NULL;
     //que passer dans l'argument de mmap
@@ -124,12 +125,12 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
   if (new_shm)
   {
     
-    int result_init_mutex = initialiser_mutex(&(open_file->mutex));
+    int result_init_mutex = initialiser_mutex(&(descriptor.f->mutex));
     if(result_init_mutex != 0){
       char* erreur_init_mutex = strerror(result_init_mutex);
       fprintf(stderr, "erreur dans l'initialisation du mutex : %s \n",erreur_init_mutex);}
       
-    int result_init_cond = initialiser_cond(&(open_file->section_libre));
+    int result_init_cond = initialiser_cond(&(descriptor.f->section_libre));
     if(result_init_cond != 0){
       char* erreur_init_cond = strerror(result_init_cond);
       fprintf(stderr, "erreur dans l'initialisation du mutex : %s \n",erreur_init_cond);}
@@ -145,26 +146,50 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
 
   
 
-
+printf("creation");
 
 
 return descriptor;
     
 }
- int rl_close( rl_descriptor lfd){
+int rl_close(rl_descriptor lfd) {
+    int result = close(lfd.d);
+    if (result == -1) {
+        const char *msg = strerror(errno);
+        fprintf(stderr, "Error closing the file: %s\n", msg);
+        exit(EXIT_FAILURE);
+    }
+    int nb_owners_delete = sizeof(NB_OWNERS);
+    //int nb_locks_delete = size(NB_LOCKS);
 
-  int result = close(lfd.d);
-  if (result == -1){
-    const char *msg;
-    msg = strerror(errno);
-    fprintf(stderr,"Eroor closing the file : %s\n",msg );
-    exit(EXIT_FAILURE);
-  }
-  owner lfd_owner = {.proc = getpid(), .des = lfd.d};
-  lfd.f->lock_table;
+    owner lfd_owner = {.proc = getpid(), .des = lfd.d};
+    for (int i = 0; i < nb_owners_delete ; i++) {
+        if ((lfd.f->lock_table[i].nb_owners > 0) &&
+            (lfd.f->lock_table[i].lock_owners->des == lfd_owner.des) &&
+            (lfd.f->lock_table[i].lock_owners->proc == lfd_owner.proc)) {
+            // Remove the lock from the lock_table array
+            // treat it a table nd delete the element free(lfd.f->lock_table[i].lock_owners);
+            lfd.f->lock_table[i-1].next_lock++;
+            lfd.f->lock_table[i].nb_owners--;
+            nb_owners_delete--;
+          
+        }
+        if ((lfd.f->lock_table[i].nb_owners == 1) || (lfd.f->lock_table[i].lock_owners->des == lfd_owner.des) ){
+            // Delete the lock from the lock_table array
+            lfd.f->lock_table[i-1].next_lock++;
+            nb_owners_delete--;
+            int j =0;
+            int nb_locks_delete = sizeof(NB_LOCKS);
+            while (j<nb_owners_delete -1)
+            {
+              lfd.f->lock_table[j] = lfd.f->lock_table[j+1];
+              j++;
+            }
+            
+        }
 
+    }
+    //check also to delete the lock
 
-
-
-  return 0;
- }
+    return 0;
+}

@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -g -std=c11 -pedantic -D_POSIX_C_SOURCE
+CFLAGS=-Wall -g -std=c11 -D_POSIX_C_SOURCE
 
 CPPFLAGS= -D_GNU_SOURCE -DNDEBUG
 LDLIBS=-lrt -pthread

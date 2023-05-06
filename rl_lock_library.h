@@ -8,8 +8,8 @@
 #include <errno.h>
 #include <string.h>
 
-#define NB_OWNERS 
-#define NB_LOCKS 10
+#define NB_OWNERS 20
+#define NB_LOCKS 20  
 #define NB_FILES 256
 #define PANIC_EXIT( msg )  do{			\
    fprintf(stderr,\
@@ -40,9 +40,9 @@ typedef struct{
 
 typedef struct{
     int first;
-    rl_lock lock_table[NB_LOCKS];
     pthread_mutex_t mutex;
     pthread_cond_t section_libre;
+    rl_lock lock_table[NB_LOCKS];
 } rl_open_file;
 
 typedef struct{
@@ -56,12 +56,21 @@ static struct {
     
 } rl_all_files;
 
+struct flock{
+    short rl_type; /* F_RDLCK F_WRLCK F_UNLCK */
+    short rl_whence; /* SEEK_SET SEEK_CUR SEEK_END */
+    off_t rl_start; /*offset où le verrou commence*/
+    off_t len; /* la longueur de segment*/
+    pid_t pid; /* non utilisé dans le projet */
+}
+
 // les fonctions
 
 rl_descriptor rl_open(const char *path, int oflag, ...);
 int initialiser_mutex(pthread_mutex_t *pmutex);
 int initialiser_cond(pthread_cond_t *pcond);
- int rl_close( rl_descriptor lfd);
+int rl_close( rl_descriptor lfd);
+int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck);
 
 
 
