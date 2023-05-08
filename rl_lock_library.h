@@ -56,13 +56,6 @@ static struct {
     
 } rl_all_files;
 
-struct flock{
-    short rl_type; /* F_RDLCK F_WRLCK F_UNLCK */
-    short rl_whence; /* SEEK_SET SEEK_CUR SEEK_END */
-    off_t rl_start; /*offset où le verrou commence*/
-    off_t len; /* la longueur de segment*/
-    pid_t pid; /* non utilisé dans le projet */
-}
 
 // les fonctions
 
@@ -71,7 +64,8 @@ int initialiser_mutex(pthread_mutex_t *pmutex);
 int initialiser_cond(pthread_cond_t *pcond);
 int rl_close( rl_descriptor lfd);
 int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck);
-
+rl_descriptor rl_dup( rl_descriptor lfd );
+rl_descriptor rl_dup2( rl_descriptor lfd, int newd );
 
 
 
