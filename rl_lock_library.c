@@ -142,11 +142,6 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
       
 
   }
-    
-
-  
-
-printf("creation");
 
 
 return descriptor;
@@ -189,7 +184,6 @@ int rl_close(rl_descriptor lfd) {
         }
 
     }
-    //check also to delete the lock
 
     return 0;
 }
@@ -225,12 +219,9 @@ rl_descriptor rl_dup( rl_descriptor lfd ){
                 lfd.f->lock_table->nb_owners++;
                 nb++;
             }
+  }
   rl_descriptor new_rl_descriptor = { .d = newd, .f = lfd.f };
-
-  
   return new_rl_descriptor;
-
-}
 }
 rl_descriptor rl_dup2( rl_descriptor lfd, int newd ){
   int dup2_result = dup2( lfd.d , newd );
@@ -240,6 +231,28 @@ rl_descriptor rl_dup2( rl_descriptor lfd, int newd ){
 			exit(EXIT_FAILURE);
 		
   }
-  
-  
+  int nb = sizeof(NB_OWNERS);
+  int pos;
+  owner lfd_owner = {.proc = getpid(), .des = lfd.d};
+  for (int i = 0; i < nb ; i++) {
+        if ((lfd.f->lock_table[i].nb_owners > 0) &&
+            (lfd.f->lock_table[i].lock_owners->des == lfd_owner.des) &&
+            (lfd.f->lock_table[i].lock_owners->proc == lfd_owner.proc)) {
+                owner new_owner = {.proc = getpid(), .des = newd } ;
+
+                for(int j=0; j<lfd.f->lock_table[i].nb_owners+1; j++ ){
+                    pos = j;
+                }
+                lfd.f->lock_table[i].lock_owners[pos] = new_owner;
+                //lfd.f->lock_table[i].lock_owners[pos-1] = new_owner;
+                lfd.f->lock_table->nb_owners++;
+                nb++;
+            }
+  }
+  rl_descriptor new_rl_descriptor = { .d = newd, .f = lfd.f };
+  return new_rl_descriptor;
+
+}
+int rl_init_library(){
+
 }

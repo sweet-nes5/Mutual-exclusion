@@ -66,6 +66,7 @@ int rl_close( rl_descriptor lfd);
 int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck);
 rl_descriptor rl_dup( rl_descriptor lfd );
 rl_descriptor rl_dup2( rl_descriptor lfd, int newd );
+int rl_init_library();
 
 
 
