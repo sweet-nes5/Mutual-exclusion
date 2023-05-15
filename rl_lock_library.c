@@ -207,10 +207,6 @@ rl_descriptor rl_dup( rl_descriptor lfd ){
             (lfd.f->lock_table[i].lock_owners->des == lfd_owner.des) &&
             (lfd.f->lock_table[i].lock_owners->proc == lfd_owner.proc)) {
                 owner new_owner = {.proc = getpid(), .des = newd } ;
-                /*for(int j=nb; j>=i; j--){
-                  lfd.f->lock_table[i].lock_owners[j] = lfd.f->lock_table[i].lock_owners[j-1];
-                  pos=j;
-                }*/
                 for(int j=0; j<lfd.f->lock_table[i].nb_owners+1; j++ ){
                     pos = j;
                 }
@@ -254,5 +250,14 @@ rl_descriptor rl_dup2( rl_descriptor lfd, int newd ){
 
 }
 int rl_init_library(){
+  // nb_files=0 alors
+  rl_all_files.nb_files=0;
+  //le tableau de pointeurs est vide donc on met tout à NULL
+  for (int i = 0; i < NB_FILES; i++)
+  {
+    rl_all_files.tab_open_files[i]=NULL;
+  }
+
+  return 0;
 
 }

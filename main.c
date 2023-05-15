@@ -10,42 +10,22 @@
 #include <signal.h>
 #include <sys/types.h>
 #include<sys/wait.h>
-#include "rl_lock_library.c"
+#include "rl_lock_library.h"
 
 
 
 int main(int argc, char *argv[]){
-   
-   /*rl_descriptor test = rl_open("f_4_1000564",O_RDWR| O_CREAT,0666);
-        if (test.d == -1)
-        exit(EXIT_FAILURE);
-   int i;
-   pid_t fork_result;
-   for ( i = 0; i < 3; i++)
-   {
-    fork_result = fork();
-    if ((fork_result == -1)){
-        perror("Fonction Fork()");
-        exit(EXIT_FAILURE);
+
+    rl_init_library();
+    rl_descriptor test = rl_open("test_file.txt", O_RDWR | O_CREAT, 0666);
+    if (test.d == -1) {
+        printf("Failed to open file.\n");
+    } else {
+        printf("File opened successfully.\n");
+        rl_close(test);
     }
-    if (fork_result == 0)
-    {
-         rl_close(test);
-    }
-    
-    
-    
-   }*/
-   
-   
-   
-
-
-
-
-
-
-
-
+    if (rl_close(test) != 0) {
+    perror("rl_close");
+    exit(EXIT_FAILURE);}
     return 0;
 }
