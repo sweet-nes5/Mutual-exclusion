@@ -64,6 +64,7 @@ int initialiser_mutex(pthread_mutex_t *pmutex);
 int initialiser_cond(pthread_cond_t *pcond);
 int rl_close( rl_descriptor lfd);
 int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck);
+pid_t rl_fork();
 rl_descriptor rl_dup( rl_descriptor lfd );
 rl_descriptor rl_dup2( rl_descriptor lfd, int newd );
 int rl_init_library();

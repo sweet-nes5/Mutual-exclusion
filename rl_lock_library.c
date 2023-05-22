@@ -1,5 +1,5 @@
 /*********************************************
- * Developpeuses: Bey Nesrine, Sawsen Aouida *
+ * Developpeuses: Bey Nesrine                *
  * Projet: Projet de systeme M1              *                                     
  * Description: Implementation de verrous    *                                       
  ********************************************/
@@ -188,7 +188,32 @@ int rl_close(rl_descriptor lfd) {
     return 0;
 }
 int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck){
-  return 0;
+   if (lfd.d <0)
+   {
+    errno = EBADF;
+    return -1;
+   }
+   rl_open_file *ptr_f = lfd.f;
+   int lock_size = sizeof(ptr_f->lock_table);
+
+   switch (cmd)
+   {
+   case F_SETLK:
+    //verifier si verrou existe deja
+    break;
+   case F_SETLKW:{
+    //blocking action
+      return -1;
+   } 
+   
+   default:
+        errno = EINVAL;
+        return -1;
+    break;
+   }
+   
+
+  return cmd;
   
 }
 rl_descriptor rl_dup( rl_descriptor lfd ){
@@ -248,6 +273,46 @@ rl_descriptor rl_dup2( rl_descriptor lfd, int newd ){
   rl_descriptor new_rl_descriptor = { .d = newd, .f = lfd.f };
   return new_rl_descriptor;
 
+}
+pid_t rl_fork(){
+  pid_t fork_result = fork();
+  if (fork_result == 0) // child process
+  {
+    pid_t parent = getppid();
+    
+    for (int i = 0; i < NB_LOCKS; i++)
+    {
+      //verifier si le parent a des verrous
+      if(rl_all_files.tab_open_files[parent]!= NULL && rl_all_files.tab_open_files[parent]->lock_table[i].nb_owners>0){
+        //on parcour le tableau lock_owners
+        for (int j = 0; j < NB_OWNERS; j++)
+        {
+          owner parent_owner = rl_all_files.tab_open_files[parent]->lock_table[i].lock_owners[j];
+          if (parent_owner.proc == parent)
+          {
+            owner new_owner = { .proc = getpid(), .des = i };
+            //copier le verrou du pere
+            rl_all_files.tab_open_files[getpid()]->lock_table[i].lock_owners[j]= new_owner;
+            //incrementer le nb_owners apres avoir ajouté le child process
+            rl_all_files.tab_open_files[getpid()]->lock_table[i].nb_owners++;
+          }
+        }
+      }   
+    }
+  }
+  else if (fork_result == -1){
+    perror("Function fork()");
+    exit(EXIT_FAILURE);
+  }
+    //parent process
+    int status;
+    //waiting for the child to finish
+    if(waitpid(fork_result,&status,0)== -1){
+      perror("waitpid()");
+      exit(EXIT_FAILURE);
+    }
+    return fork_result;
+  
 }
 int rl_init_library(){
   // nb_files=0 alors
