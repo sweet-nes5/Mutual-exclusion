@@ -1,31 +1,57 @@
-#include <stdio.h> // perror()
-#include <stdlib.h> // malloc(), exit(), atexit(), EXIT_SUCCESS, EXIT_FAILURE
-#include <unistd.h> // ftruncate()
-#include <fcntl.h> // fcntl : file control ; Objets memoire POSIX : pour les constantes O_
-#include <sys/mman.h> // mmap(), munmap() ; Objets memoire POSIX : pour shm_open()
-#include <sys/stat.h> // fstat(), Pour les constantes droits d’acces // pthread_mutexattr_init(), pthread_mutexattr_setpshared(), pthread_mutex_init()
-#include <errno.h> // Pour strerror(), la variable errno
-#include <string.h> // strerror(), memset(), memmove()
-#include <stdarg.h> // Pour acceder a la liste des parametres de l’appel de fonctions avec un nombre variable de parametres
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <string.h>
+#include <stdarg.h>
 #include <signal.h>
 #include <sys/types.h>
-#include<sys/wait.h>
+#include <sys/wait.h>
 #include "rl_lock_library.h"
 
+int main(int argc, char *argv[]) {
+    rl_init_library(); // Initialize the library
+    
 
-
-int main(int argc, char *argv[]){
-
-    rl_init_library();
     rl_descriptor test = rl_open("test_file.txt", O_RDWR | O_CREAT, 0666);
     if (test.d == -1) {
         printf("Failed to open file.\n");
     } else {
         printf("File opened successfully.\n");
-        rl_close(test);
+       
     }
+    rl_descriptor dup = rl_dup( test );
+    if (dup.d == -1) {
+        printf("Failed to open file.\n");
+    } else {
+        printf("File duplicated successfully.\n");
+        printf("duplicated File closed successfully.\n");
+        rl_close(dup);
+       
+    }
+    int newd = open("output.txt", O_WRONLY | O_CREAT, 0666);
+    rl_descriptor dup2 = rl_dup2( test,newd );
+    if (dup.d == -1) {
+        printf("Failed to open file.\n");
+    } else {
+        printf("File duplicated2 successfully.\n");
+        printf("duplicated2 File closed successfully.\n");
+        rl_close(dup2);
+       
+    }
+
     if (rl_close(test) != 0) {
-    perror("rl_close");
-    exit(EXIT_FAILURE);}
+        perror("rl_close");
+        exit(EXIT_FAILURE);
+    }
+    printf("File closed successfully.\n");
+    pid_t test_result = rl_fork();
+    printf("le pid du child process est : %d\n", test_result);
+
+    
+
     return 0;
 }

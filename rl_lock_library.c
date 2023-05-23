@@ -31,10 +31,8 @@ int initialiser_mutex(pthread_mutex_t *pmutex){
   }
   if( ( code = pthread_mutexattr_setpshared(&mutexattr, PTHREAD_PROCESS_SHARED) ) != 0){
     fprintf(stderr, "Fonction pthread_mutexattr_setpshared(): ");	    
-    return code;
+    return code; }
   code = pthread_mutex_init(pmutex, &mutexattr) ;
-  return code;
-  }
   return code;
 }
 
@@ -63,7 +61,7 @@ char *prefix_slash(const char *name){
   return nom;
 }
 int segment_unlocked (rl_descriptor lfd, off_t start, off_t len){
- rl_open_file *file = &(rl_all_files.tab_open_files[lfd.d]);
+ rl_open_file *file = rl_all_files.tab_open_files[lfd.d];
   //parcours des verrous associés au fichier
   for (int i = 0; i < NB_LOCKS; i++)
   {
@@ -83,13 +81,6 @@ int segment_unlocked (rl_descriptor lfd, off_t start, off_t len){
 
 rl_descriptor rl_open(const char *path, int oflag, ...){
 
-  
-    /*rl_open_file* open_file;= (rl_open_file*) malloc(sizeof(rl_open_file) + sizeof(int)* NB_LOCKS);
-    if (open_file == NULL)
-    {
-      fprintf(stderr, "L'allocation de mémoire à l'aide de la fonction malloc() à echoué \n");
-      exit(-1);
-    }*/
     rl_descriptor descriptor = {.d = 0, .f = NULL};
     void* ptr = NULL;
     //que passer dans l'argument de mmap
