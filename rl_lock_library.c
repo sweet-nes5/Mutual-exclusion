@@ -1,8 +1,8 @@
-/*********************************************
- * Developpeuses: Bey Nesrine                *
- * Projet: Projet de systeme M1              *                                     
- * Description: Implementation de verrous    *                                       
- ********************************************/
+ /********************************************************************
+ * Developpeuses: Bey Nesrine                                        *
+ * Projet: Projet de systeme M1                                      *                                     
+ * Description: Implementation de verrous sur segments de fichiers   *                                       
+ ********************************************************************/
 
 #include <stdio.h> // perror()
 #include <stdlib.h> // malloc(), exit(), atexit(), EXIT_SUCCESS, EXIT_FAILURE
@@ -62,7 +62,23 @@ char *prefix_slash(const char *name){
   nom[L_NAME-1]='\0';
   return nom;
 }
-
+int segment_unlocked (rl_descriptor lfd, off_t start, off_t len){
+ rl_open_file *file = &(rl_all_files.tab_open_files[lfd.d]);
+  //parcours des verrous associés au fichier
+  for (int i = 0; i < NB_LOCKS; i++)
+  {
+    rl_lock *lock = &file->lock_table[i];
+    //verification du chevauchement de verrou avec le segment
+    if (lock->type != F_UNLCK && lock->starting_offset < start+len && lock->starting_offset + lock->len > start)
+    {
+      return 0; // chevauchement de verrou
+      
+    }
+    
+  }
+  return 1;// aucun verrou ne chevauche le segment
+  
+}
 
 
 rl_descriptor rl_open(const char *path, int oflag, ...){
@@ -130,7 +146,7 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
       char* erreur_init_mutex = strerror(result_init_mutex);
       fprintf(stderr, "erreur dans l'initialisation du mutex : %s \n",erreur_init_mutex);}
       
-    int result_init_cond = initialiser_cond(&(descriptor.f->section_libre));
+    int result_init_cond = initialiser_cond(&(descriptor.f->verrou_libre));
     if(result_init_cond != 0){
       char* erreur_init_cond = strerror(result_init_cond);
       fprintf(stderr, "erreur dans l'initialisation du mutex : %s \n",erreur_init_cond);}
@@ -187,23 +203,119 @@ int rl_close(rl_descriptor lfd) {
 
     return 0;
 }
-int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck){
+int rl_fcntl(rl_descriptor lfd, int cmd, struct my_flock *lck){
    if (lfd.d <0)
    {
     errno = EBADF;
     return -1;
    }
+   int peut_continuer = 0;
    rl_open_file *ptr_f = lfd.f;
    int lock_size = sizeof(ptr_f->lock_table);
 
    switch (cmd)
    {
-   case F_SETLK:
+   case F_SETLK:{
+    int j;
     //verifier si verrou existe deja
-    break;
-   case F_SETLKW:{
-    //blocking action
+    for (int i = 0; i < lock_size; i++)
+    {
+      if (ptr_f->lock_table[i].nb_owners>0)
+      {
+        for (j = 0; j < ptr_f->lock_table->nb_owners; j++)
+        {
+          owner current = ptr_f->lock_table[i].lock_owners[j];
+          //verifier verrou incompatible
+          if ((current.proc != lfd.f->lock_table[i].lock_owners[j].proc) && (lck->rl_type == F_WRLCK))
+          {
+            errno = EAGAIN;// ressource non available
+            return -1;
+          }
+          
+        }
+        
+      }
+      
+    }
+    //parcourir lock_table pour trouver le verrou
+    int lock_pos = -1;
+    for (int i = 0; i < lock_size; i++)
+    {
+      if ((ptr_f->lock_table[i].starting_offset == lck->rl_start) && (ptr_f->lock_table[i].len == lck->len))
+      {
+        lock_pos = i;
+        break;
+      }
+      
+    }
+    //on cree un nouveau verrou seulement si il n'existe pas
+    if (lock_pos == -1)
+    {
+      for (int i = 0; i < lock_size; i++)
+      {
+        if (ptr_f->lock_table[i].nb_owners == 0)
+        {
+          lock_pos = i;
+          ptr_f->lock_table[i].starting_offset = lck->rl_start;
+          ptr_f->lock_table[i].len = lck->len;
+          break;
+        }
+        
+      }
+      
+    }
+    
+    //gestion d'erreur ou cas ou le verrou reste introuvable
+    if (lock_pos == -1)
+    {
+      errno = ENOMEM;
       return -1;
+    }
+    // mettre a jour
+    int index_last_owner_pos = ptr_f->lock_table[lock_pos].nb_owners;
+    ptr_f->lock_table[lock_pos].lock_owners[index_last_owner_pos].proc = lfd.f->lock_table[lock_pos].lock_owners[j].proc;
+    ptr_f->lock_table[lock_pos].type = lck->rl_type;
+    ptr_f->lock_table[lock_pos].nb_owners++;
+
+    return 0;
+   }
+   case F_SETLKW:{
+    int result_lock = pthread_mutex_lock(&(ptr_f->mutex));
+    if (result_lock != 0)
+    {
+      perror("pthread lock");
+      exit(EXIT_FAILURE);
+    }
+    
+      if (!segment_unlocked(lfd,lck->rl_start,lck->len))
+      {
+        peut_continuer = 0;
+      }
+      else 
+        peut_continuer = 1;
+      
+      //verifier si un verrou n'a pas de propriétaire et si un segments de fichier n'a pas de proprietaire en ecriture
+      while (!peut_continuer)
+      {// un verrou chevauche le segment alors on fait un wait
+      int result_wait = pthread_cond_wait(&(ptr_f->verrou_libre),&(ptr_f->mutex));
+      if (result_wait !=0)
+      {
+        perror("pthread wait");
+        exit(EXIT_FAILURE);
+      }
+      if (segment_unlocked(lfd,lck->rl_start,lck->len))
+        peut_continuer = 1; 
+      }
+      int result_unlock = pthread_mutex_unlock(&(ptr_f->mutex));
+      if (result_unlock != 0)
+      {
+        perror("pthread unlock");
+        exit(EXIT_FAILURE);
+      }
+      
+      
+
+      return 0;
    } 
    
    default:

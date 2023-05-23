@@ -22,7 +22,7 @@
      "\n %d %s : error \"%s\" in file %s in line %d\n",\
 	   (int) getpid(),msg, strerror(errno), __FILE__, __LINE__);	 \
   } while(0)	
-char *prefix_slash(const char *name);
+
 
 typedef struct{
     pid_t proc; /* pid du processus */
@@ -41,7 +41,7 @@ typedef struct{
 typedef struct{
     int first;
     pthread_mutex_t mutex;
-    pthread_cond_t section_libre;
+    pthread_cond_t verrou_libre;
     rl_lock lock_table[NB_LOCKS];
 } rl_open_file;
 
@@ -57,17 +57,26 @@ static struct {
 } rl_all_files;
 
 
-// les fonctions
+struct my_flock{
+    short rl_type; /* F_RDLCK F_WRLCK F_UNLCK */
+    short rl_whence; /* SEEK_SET SEEK_CUR SEEK_END */
+    off_t rl_start; /*offset où le verrou commence*/
+    off_t len; /* la longueur de segment*/
+    pid_t pid; /* non utilisé dans le projet */
+};
 
+// les fonctions
+char *prefix_slash(const char *name);
 rl_descriptor rl_open(const char *path, int oflag, ...);
 int initialiser_mutex(pthread_mutex_t *pmutex);
 int initialiser_cond(pthread_cond_t *pcond);
 int rl_close( rl_descriptor lfd);
-int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck);
+int rl_fcntl(rl_descriptor lfd, int cmd, struct my_flock *lck);
 pid_t rl_fork();
 rl_descriptor rl_dup( rl_descriptor lfd );
 rl_descriptor rl_dup2( rl_descriptor lfd, int newd );
 int rl_init_library();
+int segment_unlocked (rl_descriptor lfd, off_t start, off_t len);
 
 
 
