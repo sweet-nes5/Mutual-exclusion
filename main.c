@@ -20,9 +20,24 @@ int main(int argc, char *argv[]) {
     if (test.d == -1) {
         printf("Failed to open file.\n");
     } else {
-        printf("File opened successfully.\n");
+        printf("File opened and projected successfully.\n");
        
     }
+    owner file_owner = {.des = test.d, .proc= rl_fork()};
+    rl_lock example;
+    /*struct my_flock lock;
+    lock.rl_type = F_WRLCK; // write lock
+    lock.rl_start = 0;
+    lock.len = 0;
+    int result = rl_fcntl(test, F_SETLK, &lock);
+    if(result== -1){
+        perror("rl_fcntl");
+        exit(EXIT_FAILURE);
+    }else if (result == 0){
+        printf("File lock successful.\n");
+    }else
+        printf("Uknown result %d\n",result);*/
+    
     rl_descriptor dup = rl_dup( test );
     if (dup.d == -1) {
         printf("Failed to open file.\n");

@@ -62,7 +62,7 @@ struct my_flock{
     short rl_whence; /* SEEK_SET SEEK_CUR SEEK_END */
     off_t rl_start; /*offset où le verrou commence*/
     off_t len; /* la longueur de segment*/
-    pid_t pid; /* non utilisé dans le projet */
+    /*pid_t pid;  non utilisé dans le projet */
 };
 
 // les fonctions

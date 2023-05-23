@@ -91,7 +91,6 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
     int  new_shm = true;  /* new_shm == true si la creation de nouveau shared memory object */
   /* ajouter '/' au debut du nom de shared memory object */
     char *shm_name = prefix_slash(path);
-    //mode_t mode = 0;
   /* open and create */
   if((O_CREAT & oflag)== O_CREAT){// veut dire que l'objet memoire n'existe pas encore et on va le creer
         va_list liste_parametres;
@@ -100,7 +99,7 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
         va_end(liste_parametres);
    
     int taille_memoire= sizeof(rl_open_file);
-    descriptor.d = shm_open(shm_name, oflag, mode);
+    descriptor.d = shm_open(shm_name, O_RDWR | oflag, mode);
   if( descriptor.d >= 0 ){//creation de shared memory object reussie.
     
     if( ftruncate( descriptor.d, sizeof(rl_open_file) ) < 0 )
