@@ -10,21 +10,20 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include "rl_lock_library.h"
+#include "rl_lock_library.c"
 
 int main(int argc, char *argv[]) {
     rl_init_library(); // Initialize the library
     
-
-    rl_descriptor test = rl_open("test_file.txt", O_RDWR | O_CREAT, 0666);
-    if (test.d == -1) {
+    mode_t permissions = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+    rl_descriptor test = rl_open("file1.txt", O_RDWR | O_CREAT, permissions);
+    if (test.d != 0) {
         printf("Failed to open file.\n");
     } else {
         printf("File opened and projected successfully.\n");
        
     }
-    owner file_owner = {.des = test.d, .proc= rl_fork()};
-    rl_lock example;
+   // rl_lock example;
     /*struct my_flock lock;
     lock.rl_type = F_WRLCK; // write lock
     lock.rl_start = 0;
@@ -36,7 +35,7 @@ int main(int argc, char *argv[]) {
     }else if (result == 0){
         printf("File lock successful.\n");
     }else
-        printf("Uknown result %d\n",result);*/
+        printf("Uknown result %d\n",result);
     
     rl_descriptor dup = rl_dup( test );
     if (dup.d == -1) {
@@ -62,11 +61,11 @@ int main(int argc, char *argv[]) {
         perror("rl_close");
         exit(EXIT_FAILURE);
     }
-    printf("File closed successfully.\n");
-    pid_t test_result = rl_fork();
-    printf("le pid du child process est : %d\n", test_result);
+    printf("File closed successfully.\n");*/
+    //pid_t test_result = rl_fork();
+    //printf("le pid du child process est : %d\n", test_result);
 
-    
+   
 
     return 0;
 }

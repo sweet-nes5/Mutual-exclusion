@@ -43,6 +43,7 @@ typedef struct{
     pthread_mutex_t mutex;
     pthread_cond_t verrou_libre;
     rl_lock lock_table[NB_LOCKS];
+    int ref_count;// pour gerer la fermeture du shared memory object
 } rl_open_file;
 
 typedef struct{
@@ -66,7 +67,6 @@ struct my_flock{
 };
 
 // les fonctions
-char *prefix_slash(const char *name);
 rl_descriptor rl_open(const char *path, int oflag, ...);
 int initialiser_mutex(pthread_mutex_t *pmutex);
 int initialiser_cond(pthread_cond_t *pcond);

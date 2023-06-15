@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <stdarg.h>
 #include "rl_lock_library.h"
+#define SHARED_MEMORY_PREFIX "/f_"
 
 //gcc -Wall rl_lock_library.c main.c -o  min
 
@@ -46,20 +47,12 @@ int initialiser_cond(pthread_cond_t *pcond){
   code = pthread_cond_init(pcond, &condattr) ; 
   return code;
 }	
-
-char *prefix_slash(const char *name){
-  #define L_NAME 256
-  static char nom[L_NAME]; 
-
-  if( name[0] != '/' ){
-    nom[0] = '/';
-    strncpy(nom+1, name, L_NAME-1);
-  }else{
-    strncpy(nom, name, L_NAME);
-  }
-  nom[L_NAME-1]='\0';
-  return nom;
+char* getSHM(const struct stat* fileStats) {
+    char* objectName = malloc(sizeof(char) * 256);
+    sprintf(objectName, "%s%lu_%lu", SHARED_MEMORY_PREFIX, fileStats->st_dev, fileStats->st_ino);
+    return objectName;
 }
+
 int segment_unlocked (rl_descriptor lfd, off_t start, off_t len){
  rl_open_file *file = rl_all_files.tab_open_files[lfd.d];
   //parcours des verrous associés au fichier
@@ -80,7 +73,6 @@ int segment_unlocked (rl_descriptor lfd, off_t start, off_t len){
 
 
 rl_descriptor rl_open(const char *path, int oflag, ...){
-
     rl_descriptor descriptor = {.d = 0, .f = NULL};
     void* ptr = NULL;
     //que passer dans l'argument de mmap
@@ -88,46 +80,57 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
     if((O_RDWR & oflag)== O_RDWR)
       mmap_protect= PROT_READ | PROT_WRITE;
 
-    int  new_shm = true;  /* new_shm == true si la creation de nouveau shared memory object */
-  /* ajouter '/' au debut du nom de shared memory object */
-    char *shm_name = prefix_slash(path);
-  /* open and create */
-  if((O_CREAT & oflag)== O_CREAT){// veut dire que l'objet memoire n'existe pas encore et on va le creer
+    bool new_shm = false;  /* new_shm == true si la creation de nouveau shared memory object */
+    char *shm_name=NULL;
+    /* open and create */
+    if((O_CREAT & oflag)== O_CREAT){// veut dire que l'objet memoire n'existe pas encore et on va le creer
         va_list liste_parametres;
         va_start(liste_parametres,oflag);
         mode_t mode = va_arg(liste_parametres, mode_t);
         va_end(liste_parametres);
    
     int taille_memoire= sizeof(rl_open_file);
-    descriptor.d = shm_open(shm_name, O_RDWR | oflag, mode);
-  if( descriptor.d >= 0 ){//creation de shared memory object reussie.
-    
-    if( ftruncate( descriptor.d, sizeof(rl_open_file) ) < 0 )
-      PANIC_EXIT("ftruncate");
-    //projection en memoire
-    ptr= mmap((void*)0,taille_memoire,mmap_protect,MAP_SHARED,descriptor.d,0 );
-    if(ptr == MAP_FAILED){
-      PANIC_EXIT("Fonction mmap()");} 
+    descriptor.d = open(path, O_RDWR | oflag, mode);
+    if(descriptor.d == -1){
+      fprintf(stderr, "erreur dans la creation du fichier : %s \n", strerror(errno));
+      close(descriptor.d);
+      return descriptor;
+    } 
+    struct stat fileStats;
+    if (fstat(descriptor.d,&fileStats)== -1){
+      fprintf(stderr,"Failed to get file stats.\n");
+      close(descriptor.d);
+    }
+    /* nom de shared memory object */
+  
+    shm_name = getSHM(&fileStats);
+    printf("%s\n", shm_name);
+    int shm_fd = shm_open(shm_name,O_RDWR, 0666);
+    if (shm_fd == -1) {
+    fprintf(stderr, "Failed to open shared memory object: %s\n", strerror(errno));
+    close(descriptor.d);
+    return descriptor;
+    } 
+    if(shm_fd <= 0){//ouverture de shared memory object non reussie alors on va creer le fichier.
+      printf("Fichier non existant, je vais proceder à sa creation.\n");
+         shm_fd = shm_open(shm_name, O_CREAT| O_RDWR, mode);
+      if( ftruncate( shm_fd, sizeof(rl_open_file) ) < 0 )
+          PANIC_EXIT("ftruncate");
+      //projection en memoire
+      ptr= mmap((void*)0,taille_memoire,mmap_protect,MAP_SHARED,shm_fd,0 );
+      if(ptr == MAP_FAILED){
+        close(shm_fd);
+        PANIC_EXIT("Fonction mmap()");
+        } 
+        new_shm = true;
+    }
 
     descriptor.f= ptr;
-  }
- }  
-  //erreur avec l'ouverture de shm
-  
-  else if( descriptor.d < 0 && errno == EEXIST ){/* shared memory object existe déjà et il suffit de l'ouvrir */
-				       
-    descriptor.d = shm_open(shm_name,  O_RDWR, S_IWUSR | S_IRUSR);
-    if( descriptor.d < 0 )
-      PANIC_EXIT("shm_open existing object");
-    new_shm = false;
-    
-  }else 
-    exit(-1);
-    
-  //mettre à jour rl_all_files
+    descriptor.f->ref_count++;
+ }
    
    
-  //initialiser la memoire seulement si nouveau shared memory object est créé
+  //initialiser les mutex et mettre à jour la variable rl_all_files seulement si nouveau shared memory object est créé
   if (new_shm)
   {
     
@@ -141,8 +144,7 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
       char* erreur_init_cond = strerror(result_init_cond);
       fprintf(stderr, "erreur dans l'initialisation du mutex : %s \n",erreur_init_cond);}
 
-    *rl_all_files.tab_open_files = (descriptor.f);
-    (*rl_all_files.tab_open_files) ++;
+    rl_all_files.tab_open_files[rl_all_files.nb_files] = (descriptor.f);// va recevoir le resultat de mmap
     rl_all_files.nb_files++;
     
       
@@ -157,9 +159,10 @@ int rl_close(rl_descriptor lfd) {
     int result = close(lfd.d);
     if (result == -1) {
         const char *msg = strerror(errno);
-        fprintf(stderr, "Error closing the file: %s\n", msg);
+        fprintf(stderr, "Error closing the file descriptor: %s\n", msg);
         exit(EXIT_FAILURE);
     }
+    lfd.f->ref_count--;
     int nb_owners_delete = sizeof(NB_OWNERS);
     //int nb_locks_delete = size(NB_LOCKS);
 

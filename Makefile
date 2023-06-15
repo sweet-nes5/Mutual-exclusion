@@ -1,19 +1,19 @@
 CC = gcc
-CFLAGS = -Wall -g -std=c11 -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE -DNDEBUG
-LDFLAGS = -lrt -lpthread -lc
+CFLAGS = -Wall -g -std=c11 -pedantic -D_POSIX_C_SOURCE=200809L
+CPPFLAGS = -D_GNU_SOURCE -DNDEBUG
+LDLIBS = -lrt -pthread
 
-OBJS = main.o rl_lock_library.o
+ALL = main
 
-all: main
+all: $(ALL)
 
-main: $(OBJS)
-	@echo "Building main"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) && echo "Success" || echo "Failed"
+rl_lock_library.o: rl_lock_library.c rl_lock_library.h
 
-%.o: %.c
-	@echo "Compiling $<"
-	@$(CC) $(CFLAGS) -c $< -o $@
+main: main.c rl_lock_library.o
 
 clean:
-	@echo "Cleaning"
-	@rm -f $(OBJS) main
+	rm -rf *~
+	rm -rf $(ALL) *.o
+
+cleanall:
+	rm -rf $(ALL) *.o
