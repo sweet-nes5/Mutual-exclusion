@@ -75,11 +75,12 @@ int segment_unlocked (rl_descriptor lfd, off_t start, off_t len){
 rl_descriptor rl_open(const char *path, int oflag, ...){
     rl_descriptor descriptor = {.d = 0, .f = NULL};
     void* ptr = NULL;
+    struct stat fileStats;
+    int taille_memoire= sizeof(rl_open_file);
     //que passer dans l'argument de mmap
     int mmap_protect;
     if((O_RDWR & oflag)== O_RDWR)
       mmap_protect= PROT_READ | PROT_WRITE;
-
     bool new_shm = false;  /* new_shm == true si la creation de nouveau shared memory object */
     char *shm_name=NULL;
     /* open and create */
@@ -88,48 +89,59 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
         va_start(liste_parametres,oflag);
         mode_t mode = va_arg(liste_parametres, mode_t);
         va_end(liste_parametres);
-   
-    int taille_memoire= sizeof(rl_open_file);
-    descriptor.d = open(path, O_RDWR | oflag, mode);
+    // ouvrir le fichier pour descriptor
+    descriptor.d = open(path, O_RDWR, mode);
     if(descriptor.d == -1){
-      fprintf(stderr, "erreur dans la creation du fichier : %s \n", strerror(errno));
-      close(descriptor.d);
+      if(errno == ENOENT){
+        printf("File does not exist. Creating it...\n");
+        descriptor.d = open(path, O_CREAT | O_RDWR, mode);
+        if(descriptor.d==-1){
+          perror("open file");
+          return descriptor;} 
+      }
+    } else {
+      perror("open file");
       return descriptor;
-    } 
-    struct stat fileStats;
+    }
     if (fstat(descriptor.d,&fileStats)== -1){
       fprintf(stderr,"Failed to get file stats.\n");
       close(descriptor.d);
+      return descriptor;
     }
     /* nom de shared memory object */
-  
     shm_name = getSHM(&fileStats);
     printf("%s\n", shm_name);
     int shm_fd = shm_open(shm_name,O_RDWR, 0666);
     if (shm_fd == -1) {
-    fprintf(stderr, "Failed to open shared memory object: %s\n", strerror(errno));
-    close(descriptor.d);
-    return descriptor;
-    } 
-    if(shm_fd <= 0){//ouverture de shared memory object non reussie alors on va creer le fichier.
-      printf("Fichier non existant, je vais proceder à sa creation.\n");
-         shm_fd = shm_open(shm_name, O_CREAT| O_RDWR, mode);
-      if( ftruncate( shm_fd, sizeof(rl_open_file) ) < 0 )
-          PANIC_EXIT("ftruncate");
-      //projection en memoire
-      ptr= mmap((void*)0,taille_memoire,mmap_protect,MAP_SHARED,shm_fd,0 );
+      printf("Shared memory object does not exist. Creating it...\n");
+      //ouverture de shared memory object non reussie alors on va creer le fichier.
+      shm_fd = shm_open(shm_name, O_CREAT| O_RDWR, 0666);
+      if (shm_fd == -1)
+      {
+        const char *msg = strerror(errno);
+        fprintf(stderr, "Error opening the Shared object memory: %s\n", msg);
+        exit(EXIT_FAILURE);
+      }
+    //set the size of the shared memory object
+    if( ftruncate( shm_fd, sizeof(rl_open_file) ) < 0 ){
+        const char *msg = strerror(errno);
+        fprintf(stderr, "Error in ftruncate: %s\n", msg);
+        exit(EXIT_FAILURE);
+    }
+        
+    printf("Shared memory object created.\n");  
+    //projection en memoire
+    ptr= mmap((void*)0,taille_memoire,mmap_protect,MAP_SHARED,shm_fd,0 );
       if(ptr == MAP_FAILED){
         close(shm_fd);
-        PANIC_EXIT("Fonction mmap()");
+        perror("Fonction mmap()");
+        return descriptor;
         } 
-        new_shm = true;
+    new_shm = true;
     }
-
     descriptor.f= ptr;
     descriptor.f->ref_count++;
  }
-   
-   
   //initialiser les mutex et mettre à jour la variable rl_all_files seulement si nouveau shared memory object est créé
   if (new_shm)
   {
@@ -146,15 +158,11 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
 
     rl_all_files.tab_open_files[rl_all_files.nb_files] = (descriptor.f);// va recevoir le resultat de mmap
     rl_all_files.nb_files++;
-    
-      
-
   }
-
-
-return descriptor;
-    
+return descriptor; 
 }
+
+
 int rl_close(rl_descriptor lfd) {
     int result = close(lfd.d);
     if (result == -1) {

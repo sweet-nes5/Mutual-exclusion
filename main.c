@@ -17,10 +17,10 @@ int main(int argc, char *argv[]) {
     
     mode_t permissions = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
     rl_descriptor test = rl_open("file1.txt", O_RDWR | O_CREAT, permissions);
-    if (test.d != 0) {
+    if (test.d == -1) {
         printf("Failed to open file.\n");
     } else {
-        printf("File opened and projected successfully.\n");
+        printf("shared memory object opened and projected successfully.\n");
        
     }
    // rl_lock example;
