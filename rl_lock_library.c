@@ -19,6 +19,8 @@
 #include <sys/types.h>
 #include <stdarg.h>
 #include "rl_lock_library.h"
+
+
 #define SHARED_MEMORY_PREFIX "/f_"
 
 //gcc -Wall rl_lock_library.c main.c -o  min
@@ -96,13 +98,11 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
         printf("File does not exist. Creating it...\n");
         descriptor.d = open(path, O_CREAT | O_RDWR, mode);
         if(descriptor.d==-1){
-          perror("open file");
+          perror("Error in opening file");
           return descriptor;} 
       }
-    } else {
-      perror("open file");
-      return descriptor;
-    }
+    }else 
+      printf("Existing file opened correctly.\n"); 
     if (fstat(descriptor.d,&fileStats)== -1){
       fprintf(stderr,"Failed to get file stats.\n");
       close(descriptor.d);
@@ -111,36 +111,38 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
     /* nom de shared memory object */
     shm_name = getSHM(&fileStats);
     printf("%s\n", shm_name);
-    int shm_fd = shm_open(shm_name,O_RDWR, 0666);
-    if (shm_fd == -1) {
+    int shm_fd = shm_open( shm_name, O_RDWR | O_CREAT | O_EXCL, 0666);
+
+    if(shm_fd >= 0){  //objet shm est créé, donc faire ftruncate et //ensuite la projection en mémoire et  initialiser la structure rl_open_file
+      //set the size of the shared memory object
       printf("Shared memory object does not exist. Creating it...\n");
-      //ouverture de shared memory object non reussie alors on va creer le fichier.
-      shm_fd = shm_open(shm_name, O_CREAT| O_RDWR, 0666);
-      if (shm_fd == -1)
-      {
-        const char *msg = strerror(errno);
+      if( ftruncate( shm_fd, sizeof(rl_open_file) ) < 0 ){
+          const char *msg = strerror(errno);
+          fprintf(stderr, "Error in ftruncate: %s\n", msg);
+          exit(EXIT_FAILURE);
+          }
+      printf("Shared memory object created.\n");  
+      //projection en memoire
+      ptr= mmap((void*)0,taille_memoire,mmap_protect,MAP_SHARED,shm_fd,0 );
+        if(ptr == MAP_FAILED){
+          close(shm_fd);
+          perror("Fonction mmap()");
+          exit(EXIT_FAILURE);
+          }  
+      new_shm = true;       
+    }
+    else if( shm_fd == -1 && errno == EEXIST){   //le cas quand shm exist 
+         printf("Shared memory object exists. Projecting it...\n");
+        //refaire shm_open
+        shm_fd = shm_open( shm_name, O_RDWR, 0666 );
+        //projeter en mémoire sans initialisation
+
+    }else{  //probleme avec shm_open
+       const char *msg = strerror(errno);
         fprintf(stderr, "Error opening the Shared object memory: %s\n", msg);
         exit(EXIT_FAILURE);
-      }
-    //set the size of the shared memory object
-    if( ftruncate( shm_fd, sizeof(rl_open_file) ) < 0 ){
-        const char *msg = strerror(errno);
-        fprintf(stderr, "Error in ftruncate: %s\n", msg);
-        exit(EXIT_FAILURE);
-    }
-        
-    printf("Shared memory object created.\n");  
-    //projection en memoire
-    ptr= mmap((void*)0,taille_memoire,mmap_protect,MAP_SHARED,shm_fd,0 );
-      if(ptr == MAP_FAILED){
-        close(shm_fd);
-        perror("Fonction mmap()");
-        return descriptor;
-        } 
-    new_shm = true;
     }
     descriptor.f= ptr;
-    descriptor.f->ref_count++;
  }
   //initialiser les mutex et mettre à jour la variable rl_all_files seulement si nouveau shared memory object est créé
   if (new_shm)
@@ -158,6 +160,7 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
 
     rl_all_files.tab_open_files[rl_all_files.nb_files] = (descriptor.f);// va recevoir le resultat de mmap
     rl_all_files.nb_files++;
+    rl_all_files.ref_count++;
   }
 return descriptor; 
 }
@@ -170,7 +173,7 @@ int rl_close(rl_descriptor lfd) {
         fprintf(stderr, "Error closing the file descriptor: %s\n", msg);
         exit(EXIT_FAILURE);
     }
-    lfd.f->ref_count--;
+    
     int nb_owners_delete = sizeof(NB_OWNERS);
     //int nb_locks_delete = size(NB_LOCKS);
 
@@ -435,7 +438,8 @@ int rl_init_library(){
   {
     rl_all_files.tab_open_files[i]=NULL;
   }
-
+  //compteur d'objets
+  rl_all_files.ref_count = 0;
   return 0;
 
 }

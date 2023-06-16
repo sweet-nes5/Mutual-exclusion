@@ -43,7 +43,7 @@ typedef struct{
     pthread_mutex_t mutex;
     pthread_cond_t verrou_libre;
     rl_lock lock_table[NB_LOCKS];
-    int ref_count;// pour gerer la fermeture du shared memory object
+    
 } rl_open_file;
 
 typedef struct{
@@ -54,7 +54,7 @@ typedef struct{
 static struct {
     int nb_files;
     rl_open_file *tab_open_files[NB_FILES];
-    
+    int ref_count;// pour gerer la fermeture du shared memory object
 } rl_all_files;
 
 
