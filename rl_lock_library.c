@@ -173,8 +173,18 @@ int rl_close(rl_descriptor lfd) {
         fprintf(stderr, "Error closing the file descriptor: %s\n", msg);
         exit(EXIT_FAILURE);
     }
+    if(munmap( (void *) lfd.f, sizeof(rl_open_file)) == -1){
+        fprintf(stderr,"unmap");
+        exit(EXIT_FAILURE);
+    }
+    if (access("file.txt", F_OK) != -1) {
+        printf("Existing file found.\n");
+        if (unlink("file.txt") == -1) {
+            perror("unlink");
+            exit(EXIT_FAILURE);}
+    }
     
-    int nb_owners_delete = sizeof(NB_OWNERS);
+    /*int nb_owners_delete = sizeof(NB_OWNERS);
     //int nb_locks_delete = size(NB_LOCKS);
 
     owner lfd_owner = {.proc = getpid(), .des = lfd.d};
@@ -203,23 +213,36 @@ int rl_close(rl_descriptor lfd) {
             
         }
 
-    }
+    }*/
 
     return 0;
 }
 int rl_fcntl(rl_descriptor lfd, int cmd, struct my_flock *lck){
-   if (lfd.d <0)
-   {
-    errno = EBADF;
-    return -1;
-   }
+
    int peut_continuer = 0;
    rl_open_file *ptr_f = lfd.f;
    int lock_size = sizeof(ptr_f->lock_table);
-
+   int mutex_lock_result = pthread_mutex_lock(&(ptr_f->mutex)); 
+   if (mutex_lock_result != 0)
+   {
+    char *error_msg = strerror(mutex_lock_result);
+    fprintf(stderr,"Function pthread_mutex_lock() : %s \n",error_msg);
+    exit(EXIT_FAILURE);
+   }
+   printf("hey");
+   
    switch (cmd)
    {
    case F_SETLK:{
+    if(fcntl(lfd.d, cmd, lck) == -1){
+      perror("Can't set exclusive lock.");
+      exit(1);
+    }
+    else if(lck->rl_type!= F_UNLCK){
+      printf("File has been locked by process %d \n",(int)getpid());
+    }
+    else
+      printf("File is now locked by process %d\n",(int)getpid());
     int j;
     //verifier si verrou existe deja
     for (int i = 0; i < lock_size; i++)

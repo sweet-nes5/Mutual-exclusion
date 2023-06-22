@@ -10,18 +10,22 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include "rl_lock_library.c"
+#include "rl_lock_library.h"
 
 int main(int argc, char *argv[]) {
     rl_init_library(); // Initialize the library
     
     mode_t permissions = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-    rl_descriptor test = rl_open("file1.txt", O_RDWR | O_CREAT, permissions);
-    if (test.d == -1) {
-        printf("Failed to open file.\n");
-    } else {
-        printf("shared memory object opened and projected successfully.\n");
-       
+    int fileOpened = 0;
+    rl_descriptor test;
+    if(!fileOpened){
+        test = rl_open("file.txt", O_RDWR | O_CREAT, permissions);
+        if (test.d == -1) {
+            printf("Failed to open file.\n");
+        } else {
+            printf("shared memory object opened and projected successfully.\n");
+        fileOpened = 1;
+        }
     }
    // rl_lock example;
     /*struct my_flock lock;
@@ -35,9 +39,21 @@ int main(int argc, char *argv[]) {
     }else if (result == 0){
         printf("File lock successful.\n");
     }else
-        printf("Uknown result %d\n",result);
+        printf("Uknown result %d\n",result);*/
+
+    if (fileOpened &&  rl_close(test) == 0) {
+        printf("File closed successfully.\n");
+        fileOpened = 0;
+    }else{
+        perror("Failed to close file.\n");
+        exit(EXIT_FAILURE);
+    }/**/
     
-    rl_descriptor dup = rl_dup( test );
+    
+   
+    
+    
+    /*rl_descriptor dup = rl_dup( test );
     if (dup.d == -1) {
         printf("Failed to open file.\n");
     } else {
