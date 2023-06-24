@@ -75,6 +75,7 @@ int segment_unlocked (rl_descriptor lfd, off_t start, off_t len){
 
 
 rl_descriptor rl_open(const char *path, int oflag, ...){
+   
     rl_descriptor descriptor = {.d = 0, .f = NULL};
     void* ptr = NULL;
     struct stat fileStats;
@@ -129,39 +130,48 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
           perror("Fonction mmap()");
           exit(EXIT_FAILURE);
           }  
-      new_shm = true;       
-    }
-    else if( shm_fd == -1 && errno == EEXIST){   //le cas quand shm exist 
-         printf("Shared memory object exists. Projecting it...\n");
-        //refaire shm_open
-        shm_fd = shm_open( shm_name, O_RDWR, 0666 );
-        //projeter en mémoire sans initialisation
+      descriptor.f= ptr;
+    
+      //initialiser les mutex et mettre à jour la variable rl_all_files seulement si nouveau shared memory object est créé    
+      int result_init_mutex = initialiser_mutex(&(descriptor.f->mutex));
+      if(result_init_mutex != 0){
+        char* erreur_init_mutex = strerror(result_init_mutex);
+        fprintf(stderr, "erreur dans l'initialisation du mutex : %s \n",erreur_init_mutex);}
+        
+      int result_init_cond = initialiser_cond(&(descriptor.f->verrou_libre));
+      if(result_init_cond != 0){
+        char* erreur_init_cond = strerror(result_init_cond);
+        fprintf(stderr, "erreur dans l'initialisation du mutex : %s \n",erreur_init_cond);}
 
-    }else{  //probleme avec shm_open
-       const char *msg = strerror(errno);
+      rl_all_files.tab_open_files[rl_all_files.nb_files] = (descriptor.f);// va recevoir le resultat de mmap
+      rl_all_files.nb_files++;
+      rl_all_files.ref_count++;       
+    }
+    else if (shm_fd == -1 && errno == EEXIST) {
+    printf("Shared memory object exists. Projecting it...\n");
+    // Refaire shm_open
+    shm_fd = shm_open(shm_name, O_RDWR, 0666);
+    if (shm_fd == -1) {
+        const char *msg = strerror(errno);
         fprintf(stderr, "Error opening the Shared object memory: %s\n", msg);
         exit(EXIT_FAILURE);
     }
-    descriptor.f= ptr;
- }
-  //initialiser les mutex et mettre à jour la variable rl_all_files seulement si nouveau shared memory object est créé
-  if (new_shm)
-  {
-    
-    int result_init_mutex = initialiser_mutex(&(descriptor.f->mutex));
-    if(result_init_mutex != 0){
-      char* erreur_init_mutex = strerror(result_init_mutex);
-      fprintf(stderr, "erreur dans l'initialisation du mutex : %s \n",erreur_init_mutex);}
-      
-    int result_init_cond = initialiser_cond(&(descriptor.f->verrou_libre));
-    if(result_init_cond != 0){
-      char* erreur_init_cond = strerror(result_init_cond);
-      fprintf(stderr, "erreur dans l'initialisation du mutex : %s \n",erreur_init_cond);}
 
-    rl_all_files.tab_open_files[rl_all_files.nb_files] = (descriptor.f);// va recevoir le resultat de mmap
-    rl_all_files.nb_files++;
-    rl_all_files.ref_count++;
-  }
+    // Projection en mémoire
+    ptr = mmap((void *)0, taille_memoire, mmap_protect, MAP_SHARED, shm_fd, 0);
+    if (ptr == MAP_FAILED) {
+        close(shm_fd);
+        perror("Fonction mmap()");
+        exit(EXIT_FAILURE);
+    }
+
+    descriptor.f = ptr;
+}
+
+    
+ }
+  
+ //printf("%p", (void *)descriptor.f);
 return descriptor; 
 }
 
@@ -217,144 +227,63 @@ int rl_close(rl_descriptor lfd) {
 
     return 0;
 }
-int rl_fcntl(rl_descriptor lfd, int cmd, struct my_flock *lck){
 
-   int peut_continuer = 0;
-   rl_open_file *ptr_f = lfd.f;
-   int lock_size = sizeof(ptr_f->lock_table);
-   int mutex_lock_result = pthread_mutex_lock(&(ptr_f->mutex)); 
-   if (mutex_lock_result != 0)
-   {
-    char *error_msg = strerror(mutex_lock_result);
-    fprintf(stderr,"Function pthread_mutex_lock() : %s \n",error_msg);
-    exit(EXIT_FAILURE);
-   }
-   printf("hey");
-   
-   switch (cmd)
-   {
-   case F_SETLK:{
-    if(fcntl(lfd.d, cmd, lck) == -1){
-      perror("Can't set exclusive lock.");
-      exit(1);
-    }
-    else if(lck->rl_type!= F_UNLCK){
-      printf("File has been locked by process %d \n",(int)getpid());
-    }
-    else
-      printf("File is now locked by process %d\n",(int)getpid());
-    int j;
-    //verifier si verrou existe deja
-    for (int i = 0; i < lock_size; i++)
-    {
-      if (ptr_f->lock_table[i].nb_owners>0)
-      {
-        for (j = 0; j < ptr_f->lock_table->nb_owners; j++)
-        {
-          owner current = ptr_f->lock_table[i].lock_owners[j];
-          //verifier verrou incompatible
-          if ((current.proc != lfd.f->lock_table[i].lock_owners[j].proc) && (lck->rl_type == F_WRLCK))
-          {
-            errno = EAGAIN;// ressource non available
-            return -1;
-          }
-          
-        }
-        
-      }
-      
-    }
-    //parcourir lock_table pour trouver le verrou
-    int lock_pos = -1;
-    for (int i = 0; i < lock_size; i++)
-    {
-      if ((ptr_f->lock_table[i].starting_offset == lck->rl_start) && (ptr_f->lock_table[i].len == lck->len))
-      {
-        lock_pos = i;
-        break;
-      }
-      
-    }
-    //on cree un nouveau verrou seulement si il n'existe pas
-    if (lock_pos == -1)
-    {
-      for (int i = 0; i < lock_size; i++)
-      {
-        if (ptr_f->lock_table[i].nb_owners == 0)
-        {
-          lock_pos = i;
-          ptr_f->lock_table[i].starting_offset = lck->rl_start;
-          ptr_f->lock_table[i].len = lck->len;
-          break;
-        }
-        
-      }
-      
-    }
-    
-    //gestion d'erreur ou cas ou le verrou reste introuvable
-    if (lock_pos == -1)
-    {
-      errno = ENOMEM;
-      return -1;
-    }
-    // mettre a jour
-    int index_last_owner_pos = ptr_f->lock_table[lock_pos].nb_owners;
-    ptr_f->lock_table[lock_pos].lock_owners[index_last_owner_pos].proc = lfd.f->lock_table[lock_pos].lock_owners[j].proc;
-    ptr_f->lock_table[lock_pos].type = lck->rl_type;
-    ptr_f->lock_table[lock_pos].nb_owners++;
-
-    return 0;
-   }
-   case F_SETLKW:{
-    int result_lock = pthread_mutex_lock(&(ptr_f->mutex));
-    if (result_lock != 0)
-    {
-      perror("pthread lock");
-      exit(EXIT_FAILURE);
-    }
-    
-      if (!segment_unlocked(lfd,lck->rl_start,lck->len))
-      {
-        peut_continuer = 0;
-      }
-      else 
-        peut_continuer = 1;
-      
-      //verifier si un verrou n'a pas de propriétaire et si un segments de fichier n'a pas de proprietaire en ecriture
-      while (!peut_continuer)
-      {// un verrou chevauche le segment alors on fait un wait
-      int result_wait = pthread_cond_wait(&(ptr_f->verrou_libre),&(ptr_f->mutex));
-      if (result_wait !=0)
-      {
-        perror("pthread wait");
-        exit(EXIT_FAILURE);
-      }
-      if (segment_unlocked(lfd,lck->rl_start,lck->len))
-        peut_continuer = 1; 
-      }
-      int result_unlock = pthread_mutex_unlock(&(ptr_f->mutex));
-      if (result_unlock != 0)
-      {
-        perror("pthread unlock");
-        exit(EXIT_FAILURE);
-      }
-      
-      
-
-      return 0;
-   } 
-   
-   default:
-        errno = EINVAL;
-        return -1;
-    break;
-   }
-   
-
-  return cmd;
+int rl_fcntl(rl_descriptor lfd, int cmd, struct my_flock *lck) {
   
+    int lock_size = sizeof(lfd.f->lock_table);
+    int mutex_lock_result = pthread_mutex_lock(&(lfd.f->mutex));
+    if (mutex_lock_result != 0) {
+        fprintf(stderr, "Function pthread_mutex_lock() failed: %s\n", strerror(mutex_lock_result));
+        exit(EXIT_FAILURE);
+    }
+
+    int result = 0;
+
+    switch (cmd) {
+        case F_SETLK: {
+            result = fcntl(lfd.d, cmd, lck);
+            if (result == -1) {
+                perror("Can't set exclusive lock.");
+                exit(EXIT_FAILURE);
+            } else if (lck->rl_type != F_UNLCK) {
+                printf("File has been locked by process %d\n", getpid());
+            } else {
+                printf("File is now locked by process %d\n", getpid());
+            }
+
+            break;
+        }
+        /*case F_SETLKW: {
+            int result_lock = pthread_mutex_lock(&(lfd.f->mutex));
+            if (result_lock != 0) {
+                perror("pthread lock");
+                exit(EXIT_FAILURE);
+            }
+
+
+            int result_unlock = pthread_mutex_unlock(&(lfd.f->mutex));
+            if (result_unlock != 0) {
+                perror("pthread unlock");
+                exit(EXIT_FAILURE);
+            }
+
+            break;
+        }*/
+        default:
+            errno = EINVAL;
+            result = -1;
+            break;
+    }
+
+    int mutex_unlock_result = pthread_mutex_unlock(&(lfd.f->mutex));
+    if (mutex_unlock_result != 0) {
+        fprintf(stderr, "Function pthread_mutex_unlock() failed: %s\n", strerror(mutex_unlock_result));
+        exit(EXIT_FAILURE);
+    }
+
+    return result;
 }
+
 rl_descriptor rl_dup( rl_descriptor lfd ){
   int newd = dup( lfd.d );
   if ( newd == -1 ) {

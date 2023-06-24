@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
         }
     }
    // rl_lock example;
-    /*struct my_flock lock;
+   struct my_flock lock;
     lock.rl_type = F_WRLCK; // write lock
     lock.rl_start = 0;
     lock.len = 0;
@@ -39,15 +39,15 @@ int main(int argc, char *argv[]) {
     }else if (result == 0){
         printf("File lock successful.\n");
     }else
-        printf("Uknown result %d\n",result);*/
+        printf("Uknown result %d\n",result); /**/
 
-    if (fileOpened &&  rl_close(test) == 0) {
+    /*if (fileOpened &&  rl_close(test) == 0) {
         printf("File closed successfully.\n");
         fileOpened = 0;
     }else{
         perror("Failed to close file.\n");
         exit(EXIT_FAILURE);
-    }/**/
+    }*/
     
     
    
@@ -71,13 +71,13 @@ int main(int argc, char *argv[]) {
         printf("duplicated2 File closed successfully.\n");
         rl_close(dup2);
        
-    }
+    }*/
 
     if (rl_close(test) != 0) {
         perror("rl_close");
         exit(EXIT_FAILURE);
     }
-    printf("File closed successfully.\n");*/
+    printf("File closed successfully.\n");
     //pid_t test_result = rl_fork();
     //printf("le pid du child process est : %d\n", test_result);
 
