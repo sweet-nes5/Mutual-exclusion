@@ -183,6 +183,7 @@ int rl_close(rl_descriptor lfd) {
         fprintf(stderr, "Error closing the file descriptor: %s\n", msg);
         exit(EXIT_FAILURE);
     }
+    //seulement si dernier processus veut fermer
     if(munmap( (void *) lfd.f, sizeof(rl_open_file)) == -1){
         fprintf(stderr,"unmap");
         exit(EXIT_FAILURE);
@@ -228,47 +229,60 @@ int rl_close(rl_descriptor lfd) {
     return 0;
 }
 
+
 int rl_fcntl(rl_descriptor lfd, int cmd, struct my_flock *lck) {
-  
-    int lock_size = sizeof(lfd.f->lock_table);
+    int result = 0;
     int mutex_lock_result = pthread_mutex_lock(&(lfd.f->mutex));
     if (mutex_lock_result != 0) {
         fprintf(stderr, "Function pthread_mutex_lock() failed: %s\n", strerror(mutex_lock_result));
         exit(EXIT_FAILURE);
     }
 
-    int result = 0;
-
     switch (cmd) {
         case F_SETLK: {
-            result = fcntl(lfd.d, cmd, lck);
-            if (result == -1) {
-                perror("Can't set exclusive lock.");
+            off_t lock_offset = lck->rl_start;
+            off_t lock_end = lock_offset + lck->len;
+            off_t current_offset;
+
+            while (true) {
+                printf("im stuck in loop\n");
+                if (lseek(lfd.d, 0, SEEK_SET) == -1) {
+                    perror("lseek");
+                    exit(EXIT_FAILURE);
+                }
+                
+                current_offset = lseek(lfd.d, 0, SEEK_CUR);
+                if (current_offset == -1) {
+                    perror("lseek");
+                    exit(EXIT_FAILURE);
+                }
+
+                printf("Current offset: %lld, Lock length: %lld - %lld\n", current_offset, lock_offset, lock_end);
+
+                if (current_offset >= lock_offset && current_offset < lock_end) {
+                  
+                    usleep(3); 
+                } else {
+                    //out of range
+                    printf("Acquiring lock...\n");
+                    break;
+                }
+              }
+
+            //get rl type
+            char lock_marker = lck->rl_type == F_RDLCK ? 'R' : 'W';
+            ssize_t write_result = pwrite(lfd.d, &lock_marker, 1, lock_offset);
+            if (write_result == -1) {
+                perror("Can't set lock.");
                 exit(EXIT_FAILURE);
             } else if (lck->rl_type != F_UNLCK) {
-                printf("File has been locked by process %d\n", getpid());
+                printf("File segment has been locked by process %d\n", getpid());
             } else {
-                printf("File is now locked by process %d\n", getpid());
+                printf("File segment is now unlocked by process %d\n", getpid());
             }
 
             break;
         }
-        /*case F_SETLKW: {
-            int result_lock = pthread_mutex_lock(&(lfd.f->mutex));
-            if (result_lock != 0) {
-                perror("pthread lock");
-                exit(EXIT_FAILURE);
-            }
-
-
-            int result_unlock = pthread_mutex_unlock(&(lfd.f->mutex));
-            if (result_unlock != 0) {
-                perror("pthread unlock");
-                exit(EXIT_FAILURE);
-            }
-
-            break;
-        }*/
         default:
             errno = EINVAL;
             result = -1;
@@ -283,6 +297,7 @@ int rl_fcntl(rl_descriptor lfd, int cmd, struct my_flock *lck) {
 
     return result;
 }
+
 
 rl_descriptor rl_dup( rl_descriptor lfd ){
   int newd = dup( lfd.d );
