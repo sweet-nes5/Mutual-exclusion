@@ -79,22 +79,11 @@ int main(int argc, char **argv) {
     }*/
 
     if (fileOpened && rl_close(d) == 0) {
+        printf("File closed successfully.\n");
         fileOpened = 0;
     } else {
         perror("Failed to close file.\n");
         exit(EXIT_FAILURE);
-    }
-    //seulement si dernier processus veut fermer
-    if((rl_all_files.nb_files==0)){
-
-      if (access(argv[1], F_OK) != -1) {
-          printf("Existing file found.\n");
-          if (unlink(argv[1]) == -1) {
-              perror("unlink");
-              exit(EXIT_FAILURE);}
-      }
-      remove("toto.txt");
-      printf("File closed successfully.\n");
     }
 
     return 0;

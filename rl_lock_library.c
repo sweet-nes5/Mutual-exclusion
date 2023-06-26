@@ -72,10 +72,11 @@ int segment_unlocked (rl_descriptor lfd, off_t start, off_t len){
   return 1;// aucun verrou ne chevauche le segment
   
 }
-
+char *currentFileName = NULL;
 
 rl_descriptor rl_open(const char *path, int oflag, ...){
-   
+    
+    currentFileName = strdup(path);
     rl_descriptor descriptor = {.d = 0, .f = NULL};
     void* ptr = NULL;
     struct stat fileStats;
@@ -189,7 +190,23 @@ int rl_close(rl_descriptor lfd) {
         fprintf(stderr,"unmap");
         exit(EXIT_FAILURE);
     }
+    //printf("%s\n",currentFileName);    
     rl_all_files.nb_files--;
+    //printf("%d\n", rl_all_files.nb_files);
+    //seulement si dernier processus veut fermer
+    if((rl_all_files.nb_files==0)){
+
+      if (access(currentFileName, F_OK) != -1) {
+          printf("Existing file found.\n");
+          if (unlink(currentFileName) == -1) {
+              perror("unlink");
+              exit(EXIT_FAILURE);}
+      }
+      remove(currentFileName);
+    
+    }
+
+
     //printf("%d\n", rl_all_files.nb_files);
     
     /*int nb_owners_delete = sizeof(NB_OWNERS);
