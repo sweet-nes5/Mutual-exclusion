@@ -111,7 +111,7 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
     }
     /* nom de shared memory object */
     shm_name = getSHM(&fileStats);
-    printf("%s\n", shm_name);
+    printf("the shared memory object name is : %s\n", shm_name);
     int shm_fd = shm_open( shm_name, O_RDWR | O_CREAT | O_EXCL, 0666);
 
     if(shm_fd >= 0){  //objet shm est créé, donc faire ftruncate et //ensuite la projection en mémoire et  initialiser la structure rl_open_file
@@ -170,7 +170,8 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
 
     
  }
-  
+  //printf("%d\n", rl_all_files.nb_files);
+
  //printf("%p", (void *)descriptor.f);
 return descriptor; 
 }
@@ -183,17 +184,13 @@ int rl_close(rl_descriptor lfd) {
         fprintf(stderr, "Error closing the file descriptor: %s\n", msg);
         exit(EXIT_FAILURE);
     }
-    //seulement si dernier processus veut fermer
+    //deconnecter le processus de la memoire partagé mais celle ci n'est pas détruite
     if(munmap( (void *) lfd.f, sizeof(rl_open_file)) == -1){
         fprintf(stderr,"unmap");
         exit(EXIT_FAILURE);
     }
-    if (access("file.txt", F_OK) != -1) {
-        printf("Existing file found.\n");
-        if (unlink("file.txt") == -1) {
-            perror("unlink");
-            exit(EXIT_FAILURE);}
-    }
+    rl_all_files.nb_files--;
+    //printf("%d\n", rl_all_files.nb_files);
     
     /*int nb_owners_delete = sizeof(NB_OWNERS);
     //int nb_locks_delete = size(NB_LOCKS);

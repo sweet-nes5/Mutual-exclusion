@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
         exit(1);
     }
     //ajouté pour enfin pouvoir exécuter la fonction rl_fcntl
-    int mutex_unlock_result = pthread_mutex_unlock(&(d.f->mutex));
+    /*int mutex_unlock_result = pthread_mutex_unlock(&(d.f->mutex));
     bool once = true;
         while (rl_fcntl(d, F_SETLK, &fl) == -1) {
         if (!once)
@@ -76,14 +76,25 @@ int main(int argc, char **argv) {
     printf("Process %d releases the lock\n", getpid());
     if (rl_fcntl(d, F_SETLK, &fl) == -1) {
         fprintf(stderr, "Process %d: Error releasing lock\n", getpid());
-    }
+    }*/
 
     if (fileOpened && rl_close(d) == 0) {
-        printf("File closed successfully.\n");
         fileOpened = 0;
     } else {
         perror("Failed to close file.\n");
         exit(EXIT_FAILURE);
+    }
+    //seulement si dernier processus veut fermer
+    if((rl_all_files.nb_files==0)){
+
+      if (access(argv[1], F_OK) != -1) {
+          printf("Existing file found.\n");
+          if (unlink(argv[1]) == -1) {
+              perror("unlink");
+              exit(EXIT_FAILURE);}
+      }
+      remove("toto.txt");
+      printf("File closed successfully.\n");
     }
 
     return 0;
