@@ -7,7 +7,6 @@
 #include <stdio.h> // perror()
 #include <stdlib.h> // malloc(), exit(), atexit(), EXIT_SUCCESS, EXIT_FAILURE
 #include <unistd.h> // ftruncate()
-#include <fcntl.h> // fcntl : file control ; Objets memoire POSIX : pour les constantes O_
 #include <sys/mman.h> // mmap(), munmap() ; Objets memoire POSIX : pour shm_open()
 #include <sys/stat.h> // fstat(), Pour les constantes droits d’acces
 #include <pthread.h> // pthread_mutexattr_init(), pthread_mutexattr_setpshared(), pthread_mutex_init()
@@ -15,6 +14,7 @@
 #include <string.h> // strerror(), memset(), memmove()
 #include <stdarg.h> // Pour acceder a la liste des parametres de l’appel de fonctions avec un nombre variable de parametres
 #include <signal.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <sys/types.h>
 #include <stdarg.h>
@@ -244,7 +244,7 @@ int rl_close(rl_descriptor lfd) {
 }
 
 
-int rl_fcntl(rl_descriptor lfd, int cmd, struct my_flock *lck) {
+int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck) {
     int result = 0;
     int mutex_lock_result = pthread_mutex_lock(&(lfd.f->mutex));
     if (mutex_lock_result != 0) {
@@ -254,8 +254,8 @@ int rl_fcntl(rl_descriptor lfd, int cmd, struct my_flock *lck) {
 
     switch (cmd) {
         case F_SETLK: {
-            off_t lock_offset = lck->rl_start;
-            off_t lock_end = lock_offset + lck->len;
+            off_t lock_offset = lck->l_start;
+            off_t lock_end = lock_offset + lck->l_len;
             off_t current_offset;
 
             while (true) {
@@ -271,7 +271,7 @@ int rl_fcntl(rl_descriptor lfd, int cmd, struct my_flock *lck) {
                     exit(EXIT_FAILURE);
                 }
 
-                printf("Current offset: %lld, Lock length: %lld - %lld\n", current_offset, lock_offset, lock_end);
+                printf("Current offset: %ld, Lock length: %ld - %ld\n", (long) current_offset, (long) lock_offset, (long) lock_end);
 
                 if (current_offset >= lock_offset && current_offset < lock_end) {
                   
@@ -284,12 +284,12 @@ int rl_fcntl(rl_descriptor lfd, int cmd, struct my_flock *lck) {
               }
 
             //get rl type
-            char lock_marker = lck->rl_type == F_RDLCK ? 'R' : 'W';
+            char lock_marker = lck->l_type == F_RDLCK ? 'R' : 'W';
             ssize_t write_result = pwrite(lfd.d, &lock_marker, 1, lock_offset);
             if (write_result == -1) {
                 perror("Can't set lock.");
                 exit(EXIT_FAILURE);
-            } else if (lck->rl_type != F_UNLCK) {
+            } else if (lck->l_type != F_UNLCK) {
                 printf("File segment has been locked by process %d\n", getpid());
             } else {
                 printf("File segment is now unlocked by process %d\n", getpid());

@@ -1,21 +1,17 @@
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <errno.h>
-#include <string.h>
-#include <stdarg.h>
-#include <signal.h>
-#include <fcntl.h>
 #include <stdbool.h>
+#include <errno.h>
 #include <sys/types.h>
-#include <sys/wait.h>
+#include <unistd.h>
 #include "rl_lock_library.h"
+
 
 #define READ_LOCK 1
 #define WRITE_LOCK 2
 #define UNLOCK 0
+
 
 int main(int argc, char **argv) {
     if (argc != 5) {
@@ -32,9 +28,14 @@ int main(int argc, char **argv) {
     }
 
     rl_init_library();
+    struct flock fl = { .l_start=atoi(argv[2]),
+		      .l_len = atoi(argv[3]),
+		      .l_type = argv[4][0]=='R' ? F_RDLCK : F_WRLCK,
+		      .l_whence = SEEK_SET
+    };
     int fileOpened = 0;
     
-    struct my_flock fl = {
+    struct flock fl = {
         .rl_start = atoi(argv[2]),
         .len = atoi(argv[3]),
         .rl_type = argv[4][0] == 'R' ? READ_LOCK : WRITE_LOCK
