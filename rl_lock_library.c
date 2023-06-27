@@ -197,7 +197,7 @@ int rl_close(rl_descriptor lfd) {
     if((rl_all_files.nb_files==0)){
 
       if (access(currentFileName, F_OK) != -1) {
-          printf("Existing file found.\n");
+          printf("File has been closed succesfully.\n");
           if (unlink(currentFileName) == -1) {
               perror("unlink");
               exit(EXIT_FAILURE);}
@@ -258,33 +258,32 @@ int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck) {
             off_t lock_end = lock_offset + lck->l_len;
             off_t current_offset;
 
-            while (true) {
-                printf("im stuck in loop\n");
-                if (lseek(lfd.d, 0, SEEK_SET) == -1) {
-                    perror("lseek");
-                    exit(EXIT_FAILURE);
-                }
-                
-                current_offset = lseek(lfd.d, 0, SEEK_CUR);
-                if (current_offset == -1) {
-                    perror("lseek");
-                    exit(EXIT_FAILURE);
-                }
 
-                printf("Current offset: %ld, Lock length: %ld - %ld\n", (long) current_offset, (long) lock_offset, (long) lock_end);
-
-                if (current_offset >= lock_offset && current_offset < lock_end) {
-                  
-                    usleep(3); 
-                } else {
-                    //out of range
-                    printf("Acquiring lock...\n");
-                    break;
+              if(flock(lfd.d,LOCK_EX)== -1){
+                fprintf(stderr,"Process %d failed to set lock.\n",getpid());
+              }
+              else{
+                //set to the position wanted 
+                if(lseek(lfd.d, lock_offset,SEEK_SET)!= -1){
+                  if(flock(lfd.d, LOCK_EX|LOCK_NB) == -1){
+                    fprintf(stderr,"Process %d failed to set lock.\n",getpid());
+                  }else{
+                  //printf("File segment has been locked by process %d\n", getpid());
+                  sleep(3);
+                }
                 }
               }
+              flock(lfd.d,LOCK_UN);
+
+              int mutex_unlock_result = pthread_mutex_unlock(&(lfd.f->mutex));
+              if (mutex_unlock_result != 0) {
+                  fprintf(stderr, "Function pthread_mutex_unlock() failed: %s\n", strerror(mutex_unlock_result));
+                  exit(EXIT_FAILURE);
+               }
+              
 
             //get rl type
-            char lock_marker = lck->l_type == F_RDLCK ? 'R' : 'W';
+            /*char lock_marker = lck->l_type == F_RDLCK ? 'R' : 'W';
             ssize_t write_result = pwrite(lfd.d, &lock_marker, 1, lock_offset);
             if (write_result == -1) {
                 perror("Can't set lock.");
@@ -292,22 +291,18 @@ int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck) {
             } else if (lck->l_type != F_UNLCK) {
                 printf("File segment has been locked by process %d\n", getpid());
             } else {
-                printf("File segment is now unlocked by process %d\n", getpid());
-            }
-
+                printf("File segment is now unlocked by process %d\n", getpid());}*/
+            
+            }         
             break;
-        }
+        
         default:
             errno = EINVAL;
             result = -1;
             break;
+            
     }
-
-    int mutex_unlock_result = pthread_mutex_unlock(&(lfd.f->mutex));
-    if (mutex_unlock_result != 0) {
-        fprintf(stderr, "Function pthread_mutex_unlock() failed: %s\n", strerror(mutex_unlock_result));
-        exit(EXIT_FAILURE);
-    }
+    
 
     return result;
 }
