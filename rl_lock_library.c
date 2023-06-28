@@ -245,8 +245,8 @@ int rl_close(rl_descriptor lfd) {
     if (access(currentFileName, F_OK) != -1) {
       printf("[%d] File has been closed succesfully.\n", (int) getpid());
       if (unlink(currentFileName) == -1) {
-	perror("unlink");
-	exit(EXIT_FAILURE);}
+      perror("unlink");
+      exit(EXIT_FAILURE);}
     }
     remove(currentFileName);
     
@@ -314,29 +314,21 @@ int rl_close(rl_descriptor lfd) {
         printf("lfd.f->num_readers: %d\n", lfd.f->num_readers);
         printf("lfd.f->num_writers: %d\n", lfd.f->num_writers);
 
+       
         // Wait for the lock to become available
         while ((lck->l_type == F_WRLCK && (lfd.f->num_readers > 0 || lfd.f->num_writers > 0)) ||
-       (lck->l_type == F_RDLCK && lfd.f->num_writers > 1)) {
-        printf("Lock conflict: Process %d waiting...\n", getpid());
-        if (lck->l_type == F_WRLCK) {
-            lfd.f->num_writers_waiting++;
-            pthread_cond_wait(&(lfd.f->write_cond), &(lfd.f->mutex));
-            lfd.f->num_writers_waiting--;
-        } else if (lck->l_type == F_RDLCK) {
-            lfd.f->num_readers_waiting++;
-            pthread_cond_wait(&(lfd.f->read_cond), &(lfd.f->mutex));
-            lfd.f->num_readers_waiting--;
+              (lck->l_type == F_RDLCK && lfd.f->num_writers > 0)) {
+            printf("Lock conflict: Process %d waiting...\n", getpid());
+            if (lck->l_type == F_WRLCK) {
+                lfd.f->num_writers_waiting++;
+                pthread_cond_wait(&(lfd.f->write_cond), &(lfd.f->mutex));
+                lfd.f->num_writers_waiting--;
+            } else if (lck->l_type == F_RDLCK) {
+                lfd.f->num_readers_waiting++;
+                pthread_cond_wait(&(lfd.f->read_cond), &(lfd.f->mutex));
+                lfd.f->num_readers_waiting--;
+            }
         }
-    }
-
-
-        // Release the lock
-        if (lck->l_type == F_WRLCK) {
-            lfd.f->num_writers--;
-        } else if (lck->l_type == F_RDLCK) {
-            lfd.f->num_readers--;
-        }
-
         
 
         // Find an available index in the lock table
@@ -368,18 +360,11 @@ int rl_close(rl_descriptor lfd) {
 
 
         // Check for lock conflicts
-        for (int i = 0; i < NB_LOCKS; i++) {
-            if (i != lock_index && lfd.f->lock_table[i].type != F_UNLCK &&
-                lfd.f->lock_table[i].starting_offset < lck->l_start + lck->l_len &&
-                lck->l_start < lfd.f->lock_table[i].starting_offset + lfd.f->lock_table[i].len) {
-                // Check owners for a conflict
-                for (int j = 0; j < lfd.f->lock_table[i].nb_owners; j++) {
-                    if (lfd.f->lock_table[i].lock_owners[j].proc == lfd_owner.proc &&
-                        lfd.f->lock_table[i].lock_owners[j].des == lfd_owner.des) {
-                        // Process found itself in the owners array
-                        continue;  // Skip current owner
-                    }
-
+        if (lck->l_type == F_WRLCK) {
+            for (int i = 0; i < NB_LOCKS; i++) {
+                if (i != lock_index && lfd.f->lock_table[i].type != F_UNLCK &&
+                    lfd.f->lock_table[i].starting_offset < lck->l_start + lck->l_len &&
+                    lck->l_start < lfd.f->lock_table[i].starting_offset + lfd.f->lock_table[i].len) {
                     // Lock conflict error
                     fprintf(stderr, "Lock conflict error: Process %d tried to acquire lock on the same segment\n", getpid());
                     errno = EAGAIN;
