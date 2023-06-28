@@ -11,8 +11,8 @@
 #include <string.h>
 
 
-#define NB_OWNERS 20
-#define NB_LOCKS 20  
+#define NB_OWNERS 10
+#define NB_LOCKS 5
 #define NB_FILES 256
 #define PANIC_EXIT( msg )  do{			\
    fprintf(stderr,\
@@ -43,8 +43,13 @@ typedef struct{
 
 typedef struct{
     int first;
+    int num_readers;
+    int num_writers;
+    int num_writers_waiting;
+    int num_readers_waiting;
     pthread_mutex_t mutex;
-    pthread_cond_t verrou_libre;
+    pthread_cond_t read_cond;
+    pthread_cond_t write_cond;
     rl_lock lock_table[NB_LOCKS];
     
 } rl_open_file;
