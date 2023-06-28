@@ -254,7 +254,7 @@ int rl_close(rl_descriptor lfd) {
     return 0;
 }
 
-
+//./test toto.txt 0 2 R  & ./test toto.txt 0 2 R
 
  int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck) {
     if (cmd == F_SETLK) {
