@@ -225,69 +225,35 @@ rl_descriptor rl_open(const char *path, int oflag, ...){
 
 
 int rl_close(rl_descriptor lfd) {
-  int result = close(lfd.d);
-  if (result == -1) {
-    const char *msg = strerror(errno);
-    fprintf(stderr, "Error closing the file descriptor: %s\n", msg);
-    exit(EXIT_FAILURE);
-  }
-  //deconnecter le processus de la memoire partagé mais celle ci n'est pas détruite
-  if(munmap( (void *) lfd.f, sizeof(rl_open_file)) == -1){
-    fprintf(stderr,"unmap");
-    exit(EXIT_FAILURE);
-  }
-  //printf("%s\n",currentFileName);    
-  rl_all_files.nb_files--;
-  //printf("%d\n", rl_all_files.nb_files);
-  //seulement si dernier processus veut fermer
-  if( rl_all_files.nb_files==0 ){
-
-    if (access(currentFileName, F_OK) != -1) {
-      printf("[%d] File has been closed succesfully.\n", (int) getpid());
-      if (unlink(currentFileName) == -1) {
-      perror("unlink");
-      exit(EXIT_FAILURE);}
+    int result = close(lfd.d);
+    if (result == -1) {
+        const char *msg = strerror(errno);
+        fprintf(stderr, "Error closing the file descriptor: %s\n", msg);
+        exit(EXIT_FAILURE);
     }
-    remove(currentFileName);
-    
-  }
 
+    if (munmap((void *)lfd.f, sizeof(rl_open_file)) == -1) {
+        fprintf(stderr, "Error unmapping the shared memory.\n");
+        exit(EXIT_FAILURE);
+    }
 
-  //printf("%d\n", rl_all_files.nb_files);
-    
-  /*int nb_owners_delete = sizeof(NB_OWNERS);
-  //int nb_locks_delete = size(NB_LOCKS);
+    rl_all_files.nb_files--;
 
-  owner lfd_owner = {.proc = getpid(), .des = lfd.d};
-  for (int i = 0; i < nb_owners_delete ; i++) {
-  if ((lfd.f->lock_table[i].nb_owners > 0) &&
-  (lfd.f->lock_table[i].lock_owners->des == lfd_owner.des) &&
-  (lfd.f->lock_table[i].lock_owners->proc == lfd_owner.proc)) {
-  // Remove the lock from the lock_table array
-  // treat it a table nd delete the element free(lfd.f->lock_table[i].lock_owners);
-  lfd.f->lock_table[i-1].next_lock++;
-  lfd.f->lock_table[i].nb_owners--;
-  nb_owners_delete--;
-          
-  }
-  if ((lfd.f->lock_table[i].nb_owners == 1) || (lfd.f->lock_table[i].lock_owners->des == lfd_owner.des) ){
-  // Delete the lock from the lock_table array
-  lfd.f->lock_table[i-1].next_lock++;
-  nb_owners_delete--;
-  int j =0;
-  int nb_locks_delete = sizeof(NB_LOCKS);
-  while (j<nb_locks_delete -1)
-  {
-  lfd.f->lock_table[j] = lfd.f->lock_table[j+1];
-  j++;
-  }
-            
-  }
+    // Only if the last process wants to close
+    if (rl_all_files.nb_files == 0) {
+        if (access(currentFileName, F_OK) != -1) {
+            printf("[%d] File has been closed successfully.\n", (int)getpid());
+            if (unlink(currentFileName) == -1) {
+                perror("unlink");
+                exit(EXIT_FAILURE);
+            }
+        }
+        remove(currentFileName);
+    }
 
-  }*/
-
-  return 0;
+    return 0;
 }
+
 
 
  int rl_fcntl(rl_descriptor lfd, int cmd, struct flock *lck) {
